@@ -1084,60 +1084,51 @@ impl NeuroWealthVault {
 
         // If switching protocols, withdraw from current protocol first
         if current_protocol != protocol && current_protocol != symbol_short!("none") {
-            // Attempt to withdraw from current protocol
-            // Errors are handled gracefully - if withdrawal fails, we continue
-            // to prevent permanent fund lockup
             let _ = Self::withdraw_from_protocol(&env, &current_protocol);
         }
 
         // Supply to new protocol if switching to Blend
         if protocol == symbol_short!("blend") {
-            // Check if Blend pool is configured
             if !env.storage().instance().has(&DataKey::BlendPool) {
                 panic!("vault: blend pool not configured");
             }
 
-            // Get available USDC balance in vault
             let usdc_token: Address = env.storage().instance().get(&DataKey::UsdcToken).unwrap();
             let token_client = token::Client::new(&env, &usdc_token);
             let vault_balance = token_client.balance(&env.current_contract_address());
 
-            // Supply available balance to Blend
-            // Only supply if we have funds available
             if vault_balance > 0 {
-                // Attempt to supply to Blend
-                // If supply fails, we don't panic to prevent state inconsistency
-                // The error will be visible in the transaction result
                 let supplied = Self::supply_to_blend(&env, vault_balance);
 
-                // Update total assets to reflect deployed funds
-                // Note: This is a conservative approach - in production, you may want
-                // to track deployed vs available funds separately
                 if supplied > 0 {
                     let _total_assets = Self::get_total_assets_internal(&env);
-                    // Total assets remain the same, but funds are now earning yield
-                    // The yield will be reflected when assets are withdrawn from Blend
                 }
             }
+
+            env.events().publish(
+                (symbol_short!("rebalance"),),
+                RebalanceEvent {
+                    protocol,
+                    expected_apy,
+                },
+            );
         } else if protocol == symbol_short!("none") {
-            // Withdraw all funds from current protocol
             if current_protocol != symbol_short!("none") {
                 let _ = Self::withdraw_from_protocol(&env, &current_protocol);
             }
             env.storage()
                 .instance()
                 .set(&DataKey::CurrentProtocol, &symbol_short!("none"));
+            env.events().publish(
+                (symbol_short!("rebalance"),),
+                RebalanceEvent {
+                    protocol,
+                    expected_apy,
+                },
+            );
         } else {
             panic!("vault: unsupported protocol");
         }
-
-        env.events().publish(
-            (symbol_short!("rebalance"),),
-            RebalanceEvent {
-                protocol,
-                expected_apy,
-            },
-        );
     }
 
     // ==========================================================================
@@ -1282,6 +1273,10 @@ impl NeuroWealthVault {
     pub fn set_tvl_cap(env: Env, cap: i128) {
         Self::require_is_owner(&env);
 
+        if cap < 0 {
+            panic!("vault: tvl cap cannot be negative");
+        }
+
         let old_tvl_cap = env.storage().instance().get(&DataKey::TvLCap).unwrap_or(0);
         let old_user_cap = env
             .storage()
@@ -1325,6 +1320,10 @@ impl NeuroWealthVault {
     /// - Reducing the cap below a user's current balance does not affect them
     pub fn set_user_deposit_cap(env: Env, cap: i128) {
         Self::require_is_owner(&env);
+
+        if cap < 0 {
+            panic!("vault: user deposit cap cannot be negative");
+        }
 
         let old_tvl_cap = env.storage().instance().get(&DataKey::TvLCap).unwrap_or(0);
         let old_user_cap = env
@@ -1373,6 +1372,16 @@ impl NeuroWealthVault {
     /// - Only the owner can modify the limits
     pub fn set_limits(env: Env, min: i128, max: i128) {
         Self::require_is_owner(&env);
+
+        if min < 0 {
+            panic!("vault: min limit cannot be negative");
+        }
+        if max < 0 {
+            panic!("vault: max limit cannot be negative");
+        }
+        if max < min {
+            panic!("vault: max limit must be >= min limit");
+        }
 
         let old_user_cap = env
             .storage()
@@ -1781,12 +1790,34 @@ impl NeuroWealthVault {
 
         // CRITICAL SECURITY CHECK: Verify vault actually holds sufficient USDC
         // This prevents the agent from inflating total_assets beyond what the vault can pay out
+        // We must include both idle funds in vault AND funds deployed to Blend
         let usdc_token: Address = env.storage().instance().get(&DataKey::UsdcToken).unwrap();
         let token_client = token::Client::new(&env, &usdc_token);
         let vault_balance = token_client.balance(&env.current_contract_address());
 
+        let mut total_available = vault_balance;
+
+        let current_protocol: Symbol = env
+            .storage()
+            .instance()
+            .get(&DataKey::CurrentProtocol)
+            .unwrap_or(symbol_short!("none"));
+
+        if current_protocol == symbol_short!("blend")
+            && env.storage().instance().has(&DataKey::BlendPool)
+        {
+            let blend_pool: Address = env.storage().instance().get(&DataKey::BlendPool).unwrap();
+            let deployed_balance = BlendPoolClient::get_balance(
+                &env,
+                &blend_pool,
+                &usdc_token,
+                &env.current_contract_address(),
+            );
+            total_available += deployed_balance;
+        }
+
         assert!(
-            vault_balance >= new_total,
+            total_available >= new_total,
             "vault: insufficient balance for reported assets"
         );
 
