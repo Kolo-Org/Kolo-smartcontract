@@ -1,17 +1,18 @@
 use super::utils::*;
 use soroban_sdk::{testutils::Address as _, Address, Env};
 
-fn setup_vault(env: &Env) -> (Address, Address, Address) {
+fn setup_vault(env: &Env) -> (Address, Address, Address, Address) {
     let contract_id = env.register_contract(None, NeuroWealthVault);
     let client = NeuroWealthVaultClient::new(env, &contract_id);
 
+    let deployer = Address::generate(env);
     let agent = Address::generate(env);
     let usdc_token = Address::generate(env);
     let owner = Address::generate(env);
 
-    client.initialize(&owner, &agent, &usdc_token);
+    client.initialize(&deployer, &owner, &agent, &usdc_token);
 
-    (contract_id, agent, owner)
+    (contract_id, agent, owner, usdc_token)
 }
 
 #[test]
@@ -22,11 +23,12 @@ fn test_vault_initialization() {
     let contract_id = env.register_contract(None, NeuroWealthVault);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
+    let deployer = Address::generate(&env);
     let agent = Address::generate(&env);
     let owner = Address::generate(&env);
     let usdc_token = Address::generate(&env);
 
-    client.initialize(&owner, &agent, &usdc_token);
+    client.initialize(&deployer, &owner, &agent, &usdc_token);
 
     assert_eq!(client.get_agent(), agent);
     assert_eq!(client.get_usdc_token(), usdc_token);
@@ -39,7 +41,7 @@ fn test_pause_and_unpause() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, owner) = setup_vault(&env);
+    let (contract_id, _agent, owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     assert!(!client.is_paused());
@@ -56,7 +58,7 @@ fn test_emergency_pause() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, owner) = setup_vault(&env);
+    let (contract_id, _agent, owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     assert!(!client.is_paused());
@@ -70,7 +72,7 @@ fn test_set_limits() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, _owner) = setup_vault(&env);
+    let (contract_id, _agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let new_min = 20_000_000_000_i128;
@@ -87,7 +89,7 @@ fn test_set_tvl_cap() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, _owner) = setup_vault(&env);
+    let (contract_id, _agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let new_max = 150_000_000_000_i128;
@@ -102,7 +104,7 @@ fn test_set_user_deposit_cap() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, _owner) = setup_vault(&env);
+    let (contract_id, _agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let new_min = 15_000_000_000_i128;
@@ -117,7 +119,7 @@ fn test_update_agent() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, old_agent, _owner) = setup_vault(&env);
+    let (contract_id, old_agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let new_agent = Address::generate(&env);
@@ -132,7 +134,7 @@ fn test_update_total_assets() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, _owner) = setup_vault(&env);
+    let (contract_id, _agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     assert_eq!(client.get_total_assets(), 0);
@@ -143,7 +145,7 @@ fn test_get_balance() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, _owner) = setup_vault(&env);
+    let (contract_id, _agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let user = Address::generate(&env);
@@ -156,7 +158,7 @@ fn test_get_version() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, _owner) = setup_vault(&env);
+    let (contract_id, _agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     assert_eq!(client.get_version(), 1);
@@ -175,7 +177,8 @@ fn test_withdraw_checks_effects_interactions_pattern() {
     let usdc_token = Address::generate(&env);
     let owner = Address::generate(&env);
 
-    client.initialize(&owner, &agent, &usdc_token);
+    let deployer = Address::generate(&env);
+    client.initialize(&deployer, &owner, &agent, &usdc_token);
 
     assert_eq!(client.get_balance(&user), 0);
     assert_eq!(client.get_total_deposits(), 0);
@@ -187,7 +190,7 @@ fn test_withdraw_fails_when_paused() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, owner) = setup_vault(&env);
+    let (contract_id, _agent, owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let user = Address::generate(&env);
@@ -202,7 +205,7 @@ fn test_withdraw_rejects_zero_amount() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, _owner) = setup_vault(&env);
+    let (contract_id, _agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let user = Address::generate(&env);
@@ -216,7 +219,7 @@ fn test_withdraw_fails_insufficient_balance() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, _owner) = setup_vault(&env);
+    let (contract_id, _agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let user = Address::generate(&env);
@@ -236,7 +239,8 @@ fn test_withdraw_reentrancy_protection() {
     let usdc_token = Address::generate(&env);
     let owner = Address::generate(&env);
 
-    client.initialize(&owner, &agent, &usdc_token);
+    let deployer = Address::generate(&env);
+    client.initialize(&deployer, &owner, &agent, &usdc_token);
 }
 
 #[test]
@@ -245,7 +249,7 @@ fn test_deposit_fails_when_paused() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, owner) = setup_vault(&env);
+    let (contract_id, _agent, owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let user = Address::generate(&env);
@@ -260,7 +264,7 @@ fn test_deposit_rejects_zero_amount() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, _owner) = setup_vault(&env);
+    let (contract_id, _agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let user = Address::generate(&env);
@@ -274,7 +278,7 @@ fn test_deposit_enforces_minimum() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, _agent, _owner) = setup_vault(&env);
+    let (contract_id, _agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let user = Address::generate(&env);

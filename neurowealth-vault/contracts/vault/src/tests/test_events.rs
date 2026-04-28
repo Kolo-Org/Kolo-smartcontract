@@ -19,7 +19,8 @@ fn test_initialize_emits_init_event_with_correct_payload() {
     let owner = Address::generate(&env);
     let usdc_token = Address::generate(&env);
     let expected_tvl_cap = 100_000_000_000_i128;
-    client.initialize(&owner, &agent, &usdc_token);
+    let deployer = Address::generate(&env);
+    client.initialize(&deployer, &owner, &agent, &usdc_token);
 
     let init_events = find_events_by_topic(env.events().all(), &env, symbol_short!("init"));
     assert_eq!(
@@ -267,7 +268,7 @@ fn test_update_agent_emits_agent_event_with_correct_payload() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, old_agent, _owner) = setup_vault(&env);
+    let (contract_id, old_agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let new_agent = Address::generate(&env);
@@ -309,7 +310,7 @@ fn test_update_total_assets_emits_assets_event_with_correct_payload() {
     let yield_amount = 5_000_000_i128;
     let new_total = old_total + yield_amount;
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &new_total);
+    client.update_total_assets(&agent, &new_total, &false, &0);
 
     let assets_events = find_events_by_topic(env.events().all(), &env, symbol_short!("assets"));
     assert!(

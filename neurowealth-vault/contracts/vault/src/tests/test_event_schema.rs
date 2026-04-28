@@ -180,7 +180,7 @@ fn test_event_schema_ownership_transfer_events() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, owner, _agent) = setup_vault(&env);
+    let (contract_id, _agent, owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let new_owner = Address::generate(&env);
@@ -224,7 +224,7 @@ fn test_event_schema_agent_update_events() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let (contract_id, old_agent, _owner) = setup_vault(&env);
+    let (contract_id, old_agent, _owner, _usdc_token) = setup_vault(&env);
     let client = NeuroWealthVaultClient::new(&env, &contract_id);
 
     let new_agent = Address::generate(&env);
@@ -266,7 +266,7 @@ fn test_event_schema_assets_update_events() {
     let yield_amount = 5_000_000_i128;
     let new_total = old_total + yield_amount;
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &new_total);
+    client.update_total_assets(&agent, &new_total, &false, &0);
 
     let assets_events = find_events_by_topic(env.events().all(), &env, symbol_short!("assets"));
     assert_eq!(

@@ -44,7 +44,7 @@ fn test_total_shares_consistency_after_multiple_operations() {
     assert_eq!(total_after_withdraw, total_after_deposits - 3_000_000_i128);
 
     token_client.mint(&contract_id, &7_500_000_i128);
-    client.update_total_assets(&agent, &(19_500_000_i128));
+    client.update_total_assets(&agent, &19_500_000_i128, &false, &0);
 
     assert_eq!(
         client.get_total_shares(),
@@ -176,7 +176,7 @@ fn test_preview_helpers_match_convert_helpers_with_yield_and_rounding() {
     mint_and_deposit(&env, &client, &usdc_token, &user, 12_000_000_i128);
 
     token_client.mint(&contract_id, &8_000_000_i128);
-    client.update_total_assets(&agent, &20_000_000_i128);
+    client.update_total_assets(&agent, &20_000_000_i128, &false, &0);
 
     let assets = 2_000_000_i128;
     assert_eq!(
@@ -210,7 +210,7 @@ fn test_share_price_increases_after_yield() {
     let yield_amount = deposit_amount / 2;
     let new_total = deposit_amount + yield_amount;
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &new_total);
+    client.update_total_assets(&agent, &new_total, &false, &0);
 
     // After yield: same shares but each share is worth more assets
     assert_eq!(
@@ -326,7 +326,7 @@ fn test_withdraw_never_over_withdraws() {
     mint_and_deposit(&env, &client, &usdc_token, &user, deposit_amount);
 
     token_client.mint(&contract_id, &5_000_000_i128);
-    client.update_total_assets(&agent, &(15_000_000_i128));
+    client.update_total_assets(&agent, &15_000_000_i128, &false, &0);
 
     let shares_before = client.get_shares(&user);
     let balance_before = client.get_balance(&user);
@@ -365,7 +365,7 @@ fn test_proportional_shares_after_yield() {
     assert_eq!(shares2_before, deposit2);
 
     token_client.mint(&contract_id, &10_000_000_i128);
-    client.update_total_assets(&agent, &(30_000_000_i128));
+    client.update_total_assets(&agent, &30_000_000_i128, &false, &0);
 
     assert_eq!(
         client.get_shares(&user1),
@@ -401,7 +401,7 @@ fn test_rounding_down_on_share_mint() {
 
     // Inflate assets: total assets 4,000,000, total shares 3,000,000 (Price = 1.333...)
     token_client.mint(&contract_id, &1_000_000_i128);
-    client.update_total_assets(&agent, &(4_000_000_i128));
+    client.update_total_assets(&agent, &4_000_000_i128, &false, &0);
 
     // User2 deposits 2,000,001 units
     // Expected shares = floor(2,000,001 * 3,000,000 / 4,000,000) = floor(1,500,000.75) = 1,500,000
@@ -425,7 +425,7 @@ fn test_withdraw_burns_proportional_shares_after_yield() {
     mint_and_deposit(&env, &client, &usdc_token, &user, deposit);
 
     token_client.mint(&contract_id, &10_000_000_i128);
-    client.update_total_assets(&agent, &(20_000_000_i128));
+    client.update_total_assets(&agent, &20_000_000_i128, &false, &0);
 
     let shares_before = client.get_shares(&user);
     let withdraw_amount = 5_000_000_i128;
