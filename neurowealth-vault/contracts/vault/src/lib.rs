@@ -1151,7 +1151,30 @@ impl NeuroWealthVault {
 
         // If switching protocols, withdraw from current protocol first
         if current_protocol != protocol && current_protocol != symbol_short!("none") {
-            let _ = Self::withdraw_from_protocol(&env, &current_protocol);
+            // Get expected balance before withdrawal for verification
+            let expected_withdrawal = Self::get_protocol_balance(&env, &current_protocol);
+
+            let withdrawn = Self::withdraw_from_protocol(&env, &current_protocol);
+
+            // CRITICAL: Verify complete protocol exit before proceeding
+            // Check that: (1) we withdrew what was expected, AND (2) protocol balance is now 0
+            // This prevents partial transitions where funds get stuck in the old protocol
+            if expected_withdrawal > 0 {
+                assert!(
+                    withdrawn >= expected_withdrawal,
+                    "vault: incomplete protocol exit - expected {}, got {}. aborting rebalance to prevent inconsistent state",
+                    expected_withdrawal,
+                    withdrawn
+                );
+
+                // Double-check that protocol balance is actually 0
+                let remaining_balance = Self::get_protocol_balance(&env, &current_protocol);
+                assert!(
+                    remaining_balance == 0,
+                    "vault: protocol exit incomplete - {} still deployed after withdrawal. aborting rebalance",
+                    remaining_balance
+                );
+            }
         }
 
         // Supply to new protocol if switching to Blend
@@ -1181,7 +1204,28 @@ impl NeuroWealthVault {
             );
         } else if protocol == symbol_short!("none") {
             if current_protocol != symbol_short!("none") {
-                let _ = Self::withdraw_from_protocol(&env, &current_protocol);
+                // Get expected balance before withdrawal for verification
+                let expected_withdrawal = Self::get_protocol_balance(&env, &current_protocol);
+
+                let withdrawn = Self::withdraw_from_protocol(&env, &current_protocol);
+
+                // CRITICAL: Verify complete protocol exit before clearing protocol state
+                if expected_withdrawal > 0 {
+                    assert!(
+                        withdrawn >= expected_withdrawal,
+                        "vault: incomplete protocol exit - expected {}, got {}. aborting transition to none",
+                        expected_withdrawal,
+                        withdrawn
+                    );
+
+                    // Double-check that protocol balance is actually 0
+                    let remaining_balance = Self::get_protocol_balance(&env, &current_protocol);
+                    assert!(
+                        remaining_balance == 0,
+                        "vault: protocol exit incomplete - {} still deployed after withdrawal. aborting transition to none",
+                        remaining_balance
+                    );
+                }
             }
             env.storage()
                 .instance()
@@ -2693,6 +2737,31 @@ impl NeuroWealthVault {
         if current_protocol == *protocol && *protocol == symbol_short!("blend") {
             // Withdraw all funds from Blend
             Self::withdraw_from_blend(env, 0)
+        } else {
+            0
+        }
+    }
+
+    /// Internal helper: Gets the balance deployed to a specific protocol.
+    ///
+    /// Used to verify complete protocol exit during rebalancing.
+    ///
+    /// # Arguments
+    /// * `env` - The Soroban environment
+    /// * `protocol` - The protocol symbol to check
+    ///
+    /// # Returns
+    /// The amount deployed to the protocol, or 0 if not deployed
+    fn get_protocol_balance(env: &Env, protocol: &Symbol) -> i128 {
+        if *protocol == symbol_short!("blend") {
+            let pool_address: Option<Address> = env.storage().instance().get(&DataKey::BlendPool);
+            if let Some(pool) = pool_address {
+                let usdc_token: Address = env.storage().instance().get(&DataKey::UsdcToken).unwrap();
+                let vault_address = env.current_contract_address();
+                BlendPoolClient::get_balance(env, &pool, &usdc_token, &vault_address)
+            } else {
+                0
+            }
         } else {
             0
         }

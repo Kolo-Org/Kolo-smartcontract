@@ -464,3 +464,95 @@ fn test_rebalance_blend_to_none_withdraws_all_and_updates_state_and_events() {
         "rebalance event APY should match provided value"
     );
 }
+
+#[test]
+#[should_panic(expected = "vault: incomplete protocol exit")]
+fn test_rebalance_fails_on_incomplete_protocol_exit() {
+    // CRITICAL: If protocol exit fails or is partial, rebalance must abort
+    // to prevent inconsistent state where funds are split between protocols
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (contract_id, _agent, owner, usdc_token, blend_pool) =
+        setup_vault_with_token_and_blend(&env);
+    let client = NeuroWealthVaultClient::new(&env, &contract_id);
+    let blend_client = MockBlendPoolClient::new(&env, &blend_pool);
+    let token_client = TestTokenClient::new(&env, &usdc_token);
+
+    client.set_blend_pool(&owner, &blend_pool);
+
+    // Deposit and rebalance to blend
+    let user = Address::generate(&env);
+    let deposit_amount = 10_000_000_i128;
+    mint_and_deposit(&env, &client, &usdc_token, &user, deposit_amount);
+    client.rebalance(&symbol_short!("blend"), &500_i128);
+
+    // Verify funds are in blend
+    assert_eq!(
+        token_client.balance(&contract_id), 0,
+        "Vault should have 0 after rebalance to blend"
+    );
+    assert_eq!(
+        blend_client.supplied(&usdc_token),
+        deposit_amount,
+        "Blend should have full deposit amount"
+    );
+
+    // Set withdrawal limit to simulate stuck funds scenario
+    // Pool has 10M, but can only withdraw 1M per transaction
+    blend_client.set_max_withdraw_limit(&1_000_000_i128);
+
+    // Attempt to rebalance to "none" - this should panic because:
+    // - Expected to withdraw 10M from blend
+    // - But pool can only return 1M per transaction
+    // - 9M remains stuck in the protocol
+    // - This is an incomplete exit and should fail
+    client.rebalance(&symbol_short!("none"), &0_i128);
+
+    // If we reach here, the test failed (rebalance should have panicked)
+    panic!("Expected rebalance to panic on incomplete protocol exit, but it succeeded");
+}
+
+#[test]
+#[should_panic(expected = "vault: incomplete protocol exit")]
+fn test_rebalance_fails_when_switching_protocols_with_partial_exit() {
+    // CRITICAL: When switching from blend to another protocol, complete exit is required
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (contract_id, _agent, owner, usdc_token, blend_pool) =
+        setup_vault_with_token_and_blend(&env);
+    let client = NeuroWealthVaultClient::new(&env, &contract_id);
+    let blend_client = MockBlendPoolClient::new(&env, &blend_pool);
+    let token_client = TestTokenClient::new(&env, &usdc_token);
+
+    client.set_blend_pool(&owner, &blend_pool);
+
+    // Deposit and rebalance to blend
+    let user = Address::generate(&env);
+    let deposit_amount = 10_000_000_i128;
+    mint_and_deposit(&env, &client, &usdc_token, &user, deposit_amount);
+    client.rebalance(&symbol_short!("blend"), &500_i128);
+
+    // Verify funds are in blend
+    assert_eq!(
+        token_client.balance(&contract_id), 0,
+        "Vault should have 0 after rebalance to blend"
+    );
+    assert_eq!(
+        blend_client.supplied(&usdc_token),
+        deposit_amount,
+        "Blend should have full deposit amount"
+    );
+
+    // Set withdrawal limit to simulate stuck funds
+    // Pool can only withdraw 2M per transaction, leaving 8M stuck
+    blend_client.set_max_withdraw_limit(&2_000_000_i128);
+
+    // Attempt to switch protocols (blend -> none) with limited withdrawal capacity
+    // This should fail because we can't withdraw all funds from blend
+    client.rebalance(&symbol_short!("none"), &0_i128);
+
+    // If we reach here, the test failed
+    panic!("Expected rebalance to panic on incomplete protocol exit when switching protocols");
+}

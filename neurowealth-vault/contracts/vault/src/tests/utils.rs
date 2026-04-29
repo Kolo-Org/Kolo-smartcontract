@@ -28,6 +28,8 @@ enum BlendMockDataKey {
     Supplied(Address),
     /// Configurable max supply limit (0 = no limit, use requested amount)
     MaxSupplyLimit,
+    /// Configurable max withdraw limit per transaction (0 = no limit)
+    MaxWithdrawLimit,
 }
 
 pub mod token {
@@ -230,6 +232,14 @@ pub mod blend {
                 .set(&BlendMockDataKey::MaxSupplyLimit, &limit);
         }
 
+        /// Sets a max withdraw limit to simulate withdrawal failures/stuck funds.
+        /// 0 = no limit (default behavior)
+        pub fn set_max_withdraw_limit(env: Env, limit: i128) {
+            env.storage()
+                .persistent()
+                .set(&BlendMockDataKey::MaxWithdrawLimit, &limit);
+        }
+
         pub fn submit(env: Env, from: Address, to: Address, requests: Vec<crate::BlendRequest>) {
             from.require_auth();
 
@@ -244,11 +254,24 @@ pub mod blend {
                     // Withdraw request (type 1)
                     let amount_to_withdraw = core::cmp::min(request.amount, pool_balance);
 
-                    if amount_to_withdraw > 0 {
+                    // Check for configured withdrawal limit (to simulate stuck funds scenarios)
+                    let max_withdraw_limit: i128 = env
+                        .storage()
+                        .persistent()
+                        .get(&BlendMockDataKey::MaxWithdrawLimit)
+                        .unwrap_or(0);
+
+                    let actual_withdraw = if max_withdraw_limit > 0 {
+                        core::cmp::min(amount_to_withdraw, max_withdraw_limit)
+                    } else {
+                        amount_to_withdraw
+                    };
+
+                    if actual_withdraw > 0 {
                         token_client.transfer(
                             &env.current_contract_address(),
                             &to,
-                            &amount_to_withdraw,
+                            &actual_withdraw,
                         );
 
                         // Update supplied tracking
@@ -259,7 +282,7 @@ pub mod blend {
                             .unwrap_or(0);
                         env.storage().persistent().set(
                             &BlendMockDataKey::Supplied(request.address.clone()),
-                            &(total_supplied - amount_to_withdraw),
+                            &(total_supplied - actual_withdraw),
                         );
                     }
                 }
@@ -299,6 +322,13 @@ pub mod blend {
             env.storage()
                 .persistent()
                 .get(&BlendMockDataKey::MaxSupplyLimit)
+                .unwrap_or(0)
+        }
+
+        pub fn get_max_withdraw_limit(env: Env) -> i128 {
+            env.storage()
+                .persistent()
+                .get(&BlendMockDataKey::MaxWithdrawLimit)
                 .unwrap_or(0)
         }
     }
