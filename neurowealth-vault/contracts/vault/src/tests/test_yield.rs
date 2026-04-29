@@ -22,7 +22,7 @@ fn test_agent_can_update_total_assets() {
     token_client.mint(&contract_id, &yield_amount);
 
     let new_total = deposit_amount + yield_amount;
-    client.update_total_assets(&agent, &new_total);
+    client.update_total_assets(&agent, &new_total, &false, &0);
 
     assert_eq!(client.get_total_assets(), new_total);
 }
@@ -42,7 +42,7 @@ fn test_non_agent_cannot_update_total_assets() {
 
     let non_agent = Address::generate(&env);
     // update_total_assets asserts agent == stored_agent before anything else
-    client.update_total_assets(&non_agent, &deposit_amount);
+    client.update_total_assets(&non_agent, &deposit_amount, &false, &0);
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn test_yield_increases_user_asset_balance() {
     let yield_amount = deposit_amount / 2;
     let new_total_assets = deposit_amount + yield_amount;
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &new_total_assets);
+    client.update_total_assets(&agent, &new_total_assets, &false, &0);
 
     let balance_after_yield = client.get_balance(&user);
     assert!(
@@ -101,7 +101,7 @@ fn test_yield_distributed_proportionally_between_users() {
     let yield_amount = total_deposits / 2;
     let new_total_assets = total_deposits + yield_amount;
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &new_total_assets);
+    client.update_total_assets(&agent, &new_total_assets, &false, &0);
 
     let balance1_after = client.get_balance(&user1);
     let balance2_after = client.get_balance(&user2);
@@ -144,7 +144,7 @@ fn test_yield_emits_event() {
     let yield_amount = 5_000_000_i128;
     let new_total = deposit_amount + yield_amount;
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &new_total);
+    client.update_total_assets(&agent, &new_total, &false, &0);
 
     let assets_events = find_events_by_topic(
         env.events().all(),

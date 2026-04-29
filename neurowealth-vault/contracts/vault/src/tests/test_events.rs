@@ -22,7 +22,8 @@ fn test_initialize_emits_init_event_with_correct_payload() {
     let owner = Address::generate(&env);
     let usdc_token = Address::generate(&env);
     let expected_tvl_cap = 100_000_000_000_i128;
-    client.initialize(&owner, &agent, &usdc_token);
+    let deployer = Address::generate(&env);
+    client.initialize(&deployer, &owner, &agent, &usdc_token);
 
     let init_events = find_events_by_topic(env.events().all(), &env, TOPIC_INIT);
     assert_eq!(
@@ -312,7 +313,7 @@ fn test_update_total_assets_emits_assets_event_with_correct_payload() {
     let yield_amount = 5_000_000_i128;
     let new_total = old_total + yield_amount;
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &new_total);
+    client.update_total_assets(&agent, &new_total, &false, &0);
 
     let assets_events = find_events_by_topic(env.events().all(), &env, TOPIC_ASSETS_UPDATED);
     assert!(

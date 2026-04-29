@@ -28,7 +28,7 @@ fn test_deposit_withdraw_never_exceeds_total_assets() {
     // Add some yield to make it interesting
     let yield_amount = 2_000_000_i128; // 2 USDC yield
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &(deposit_amount + yield_amount));
+    client.update_total_assets(&agent, &(deposit_amount + yield_amount), &false, &0);
 
     let total_assets_before = client.get_total_assets();
     let vault_balance_before = token_client.balance(&contract_id);
@@ -93,7 +93,7 @@ fn test_multi_user_deposit_withdraw_invariants() {
     // Add yield to the system
     let yield_amount = 8_000_000_i128; // 8 USDC yield
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &(total_deposited + yield_amount));
+    client.update_total_assets(&agent, &(total_deposited + yield_amount), &false, &0);
 
     let total_assets_before = client.get_total_assets();
     let _total_shares_before = client.get_total_shares();
@@ -200,7 +200,7 @@ fn test_shares_asset_conversions_monotonic() {
     // Add yield to increase share price
     let yield_amount = 5_000_000_i128;
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &(initial_deposit + yield_amount));
+    client.update_total_assets(&agent, &(initial_deposit + yield_amount), &false, &0);
 
     let total_assets_after_yield = client.get_total_assets();
     let total_shares_after_yield = client.get_total_shares();
@@ -273,7 +273,7 @@ fn test_zero_near_zero_rounding_edges() {
     // Test that tiny amounts don't break the system
     let tiny_yield = 1_i128;
     token_client.mint(&contract_id, &tiny_yield);
-    client.update_total_assets(&agent, &(min_deposit + tiny_yield));
+    client.update_total_assets(&agent, &(min_deposit + tiny_yield), &false, &0);
 
     // Withdraw should work even with tiny amounts
     let withdrawn = client.withdraw_all(&user);
@@ -330,7 +330,7 @@ fn test_share_price_consistency() {
     // Add yield between deposits
     let yield1 = 2_000_000_i128;
     token_client.mint(&contract_id, &yield1);
-    client.update_total_assets(&agent, &(deposit1 + yield1));
+    client.update_total_assets(&agent, &(deposit1 + yield1), &false, &0);
 
     let shares1_after_yield = client.get_shares(&user1);
     let assets1_from_shares = client.preview_shares_to_assets(&shares1_after_yield);
@@ -355,7 +355,7 @@ fn test_share_price_consistency() {
     // Add more yield
     let yield2 = 3_000_000_i128;
     token_client.mint(&contract_id, &yield2);
-    client.update_total_assets(&agent, &(deposit1 + deposit2 + yield1 + yield2));
+    client.update_total_assets(&agent, &(deposit1 + deposit2 + yield1 + yield2), &false, &0);
 
     // Check that share price is applied consistently
     let final_assets1 = client.preview_shares_to_assets(&shares1_after_yield);
@@ -417,7 +417,7 @@ fn test_extreme_rounding_scenarios() {
     // Add tiny yield to create rounding challenges
     let tiny_yield = 1_i128;
     token_client.mint(&contract_id, &tiny_yield);
-    client.update_total_assets(&agent, &(total_deposited + tiny_yield));
+    client.update_total_assets(&agent, &(total_deposited + tiny_yield), &false, &0);
 
     // All users withdraw - should handle rounding gracefully
     let withdrawn1 = client.withdraw_all(&user1);
@@ -482,7 +482,7 @@ fn test_preview_functions_match_actual_conversions() {
     // Add yield
     let yield_amount = 2_345_678_i128;
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &(deposit_amount + yield_amount));
+    client.update_total_assets(&agent, &(deposit_amount + yield_amount), &false, &0);
 
     // Preview withdrawal should match actual
     let previewed_assets = client.preview_shares_to_assets(&actual_shares);

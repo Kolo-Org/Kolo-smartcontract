@@ -351,9 +351,11 @@ pub fn setup_vault_with_token(env: &Env) -> (Address, Address, Address, Address)
     let client = NeuroWealthVaultClient::new(env, &contract_id);
     let agent = Address::generate(env);
     let usdc_token = env.register_contract(None, TestToken);
-    let owner = Address::generate(env);
+    // Default the owner to the agent for simpler default test setups
+    let owner = agent.clone();
 
-    client.initialize(&owner, &agent, &usdc_token);
+    let deployer = Address::generate(env);
+    client.initialize(&deployer, &owner, &agent, &usdc_token);
 
     (contract_id, agent, owner, usdc_token)
 }

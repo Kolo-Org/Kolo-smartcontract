@@ -187,7 +187,8 @@ fn test_non_owner_cannot_emergency_pause() {
     let agent = Address::generate(&env);
     let owner = Address::generate(&env);
     let usdc_token = Address::generate(&env);
-    client.initialize(&owner, &agent, &usdc_token);
+    let deployer = Address::generate(&env);
+    client.initialize(&deployer, &owner, &agent, &usdc_token);
 
     // owner and agent are distinct; use a fresh address as non-owner
     let non_owner = Address::generate(&env);
@@ -258,7 +259,7 @@ fn test_agent_can_update_total_assets() {
     mint_and_deposit(&env, &client, &usdc_token, &user, deposit_amount);
 
     let new_total = deposit_amount;
-    client.update_total_assets(&agent, &new_total);
+    client.update_total_assets(&agent, &new_total, &false, &0);
     assert_eq!(client.get_total_assets(), new_total);
 }
 
@@ -280,7 +281,7 @@ fn test_non_agent_cannot_update_total_assets() {
     mint_and_deposit(&env, &client, &usdc_token, &user, deposit_amount);
 
     let non_agent = Address::generate(&env);
-    client.update_total_assets(&non_agent, &deposit_amount);
+    client.update_total_assets(&non_agent, &deposit_amount, &false, &0);
 }
 
 // ============================================================================

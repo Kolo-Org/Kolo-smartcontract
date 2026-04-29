@@ -270,7 +270,7 @@ fn test_event_schema_assets_update_events() {
     let yield_amount = 5_000_000_i128;
     let new_total = old_total + yield_amount;
     token_client.mint(&contract_id, &yield_amount);
-    client.update_total_assets(&agent, &new_total);
+    client.update_total_assets(&agent, &new_total, &false, &0);
 
     let assets_events = find_events_by_topic(env.events().all(), &env, TOPIC_ASSETS_UPDATED);
     assert_eq!(
