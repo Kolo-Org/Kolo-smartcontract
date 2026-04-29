@@ -26,6 +26,8 @@ enum TokenDataKey {
 #[contracttype]
 enum BlendMockDataKey {
     Supplied(Address),
+    /// Configurable max supply limit (0 = no limit, use requested amount)
+    MaxSupplyLimit,
 }
 
 pub mod token {
@@ -182,26 +184,50 @@ pub mod blend {
                 "expected allowance before pool pull"
             );
 
-            token_client.transfer_from(
-                &env.current_contract_address(),
-                &spender,
-                &env.current_contract_address(),
-                &request.amount,
-            );
-
-            let total_supplied: i128 = env
+            // Check for configured supply shortfall limit
+            let max_supply_limit: i128 = env
                 .storage()
                 .persistent()
-                .get(&BlendMockDataKey::Supplied(request.address.clone()))
+                .get(&BlendMockDataKey::MaxSupplyLimit)
                 .unwrap_or(0);
-            env.storage().persistent().set(
-                &BlendMockDataKey::Supplied(request.address),
-                &(total_supplied + request.amount),
-            );
+
+            // Calculate actual amount to supply (respecting limits)
+            let actual_amount = if max_supply_limit > 0 {
+                core::cmp::min(request.amount, max_supply_limit)
+            } else {
+                request.amount
+            };
+
+            if actual_amount > 0 {
+                token_client.transfer_from(
+                    &env.current_contract_address(),
+                    &spender,
+                    &env.current_contract_address(),
+                    &actual_amount,
+                );
+
+                let total_supplied: i128 = env
+                    .storage()
+                    .persistent()
+                    .get(&BlendMockDataKey::Supplied(request.address.clone()))
+                    .unwrap_or(0);
+                env.storage().persistent().set(
+                    &BlendMockDataKey::Supplied(request.address),
+                    &(total_supplied + actual_amount),
+                );
+            }
 
             from.clone().require_auth();
 
-            request.amount
+            actual_amount
+        }
+
+        /// Sets a max supply limit to simulate pool shortfall scenarios.
+        /// 0 = no limit (default behavior)
+        pub fn set_max_supply_limit(env: Env, limit: i128) {
+            env.storage()
+                .persistent()
+                .set(&BlendMockDataKey::MaxSupplyLimit, &limit);
         }
 
         pub fn submit(env: Env, from: Address, to: Address, requests: Vec<crate::BlendRequest>) {
@@ -266,6 +292,13 @@ pub mod blend {
             env.storage()
                 .persistent()
                 .get(&BlendMockDataKey::Supplied(asset))
+                .unwrap_or(0)
+        }
+
+        pub fn get_max_supply_limit(env: Env) -> i128 {
+            env.storage()
+                .persistent()
+                .get(&BlendMockDataKey::MaxSupplyLimit)
                 .unwrap_or(0)
         }
     }

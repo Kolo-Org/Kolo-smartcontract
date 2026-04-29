@@ -478,6 +478,11 @@ impl BlendPoolClient {
     ) -> i128 {
         use soroban_sdk::{vec, IntoVal, Symbol};
 
+        // Track vault balance before to calculate actual supplied amount
+        let token_client = token::Client::new(env, asset);
+        let vault_address = env.current_contract_address();
+        let balance_before = token_client.balance(&vault_address);
+
         // Create supply request (type 0 = supply)
         let request = BlendRequest {
             request_type: BLEND_REQUEST_TYPE_SUPPLY,
@@ -502,7 +507,11 @@ impl BlendPoolClient {
             args,
         );
 
-        amount
+        // Calculate actual amount supplied by balance change
+        let balance_after = token_client.balance(&vault_address);
+        let actual_supplied = balance_before.saturating_sub(balance_after);
+
+        actual_supplied
     }
 
     /// Redeems assets from the Blend pool.
@@ -517,6 +526,11 @@ impl BlendPoolClient {
         to: &Address,
     ) -> i128 {
         use soroban_sdk::{vec, IntoVal, Symbol};
+
+        // Track vault balance before to calculate actual withdrawn amount
+        let token_client = token::Client::new(env, asset);
+        let vault_address = env.current_contract_address();
+        let balance_before = token_client.balance(&vault_address);
 
         // Create withdraw request (type 1 = withdraw)
         let request = BlendRequest {
@@ -537,7 +551,11 @@ impl BlendPoolClient {
         // Invoke Blend's submit function
         env.invoke_contract::<Val>(pool_address, &Symbol::new(env, "submit"), args);
 
-        amount
+        // Calculate actual amount withdrawn by balance change
+        let balance_after = token_client.balance(&vault_address);
+        let actual_withdrawn = balance_after.saturating_sub(balance_before);
+
+        actual_withdrawn
     }
 
     /// Gets the balance of assets supplied to the Blend pool.

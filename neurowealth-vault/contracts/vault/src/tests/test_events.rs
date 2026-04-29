@@ -2,11 +2,11 @@
 
 use super::utils::*;
 use crate::{
-    AgentUpdatedEvent, AssetsUpdatedEvent, DepositEvent, EmergencyPausedEvent, LimitsUpdatedEvent,
-    RebalanceEvent, VaultInitializedEvent, VaultPausedEvent, VaultUnpausedEvent, WithdrawEvent,
-    TOPIC_AGENT_UPDATED, TOPIC_ASSETS_UPDATED, TOPIC_DEPOSIT, TOPIC_EMERGENCY_PAUSED,
-    TOPIC_INIT, TOPIC_LIMITS_UPDATED, TOPIC_PAUSED, TOPIC_REBALANCE, TOPIC_UNPAUSED,
-    TOPIC_WITHDRAW,
+    AgentUpdatedEvent, AssetsUpdatedEvent, BlendSupplyEvent, BlendWithdrawEvent, DepositEvent,
+    EmergencyPausedEvent, LimitsUpdatedEvent, RebalanceEvent, VaultInitializedEvent,
+    VaultPausedEvent, VaultUnpausedEvent, WithdrawEvent, TOPIC_AGENT_UPDATED, TOPIC_ASSETS_UPDATED,
+    TOPIC_BLEND_SUPPLY, TOPIC_BLEND_WITHDRAW, TOPIC_DEPOSIT, TOPIC_EMERGENCY_PAUSED, TOPIC_INIT,
+    TOPIC_LIMITS_UPDATED, TOPIC_PAUSED, TOPIC_REBALANCE, TOPIC_UNPAUSED, TOPIC_WITHDRAW,
 };
 use soroban_sdk::{symbol_short, testutils::Address as _, Address, Env, TryFromVal};
 
@@ -519,4 +519,123 @@ fn test_withdraw_all_partial_liquidity_emits_burned_shares() {
         "Event shares must match independently calculated expected shares");
     assert_eq!(event.amount, withdrawn,
         "Event amount must match actual withdrawn amount");
+}
+
+#[test]
+fn test_blend_supply_event_reports_actual_supplied_with_shortfall() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (contract_id, _agent, owner, usdc_token, blend_pool) =
+        setup_vault_with_token_and_blend(&env);
+    let client = NeuroWealthVaultClient::new(&env, &contract_id);
+    let blend_client = MockBlendPoolClient::new(&env, &blend_pool);
+    let token_client = TestTokenClient::new(&env, &usdc_token);
+
+    // Configure pool with supply shortfall limit (pool can only accept 3M)
+    blend_client.set_max_supply_limit(&3_000_000_i128);
+
+    client.set_blend_pool(&owner, &blend_pool);
+
+    // Deposit 10M USDC to vault
+    let user = Address::generate(&env);
+    mint_and_deposit(&env, &client, &usdc_token, &user, 10_000_000_i128);
+
+    // Rebalance 90% to blend - vault tries to supply 9M, but pool only accepts 3M
+    client.rebalance(&symbol_short!("blend"), &900_i128);
+
+    // Verify actual supplied was less than requested
+    let pool_supplied = blend_client.supplied(&usdc_token);
+    assert_eq!(pool_supplied, 3_000_000_i128, "Pool should only have 3M due to shortfall");
+
+    // Find blend supply events
+    let supply_events = find_events_by_topic(env.events().all(), &env, TOPIC_BLEND_SUPPLY);
+    assert!(!supply_events.is_empty(), "Should have blend supply events");
+
+    // Get the last supply event
+    let (_, _, data) = supply_events.last().unwrap();
+    let event = BlendSupplyEvent::try_from_val(&env, data).expect("Should be BlendSupplyEvent");
+
+    // CRITICAL: Event must report actual supplied (3M), NOT requested (9M)
+    assert_eq!(event.amount, 3_000_000_i128,
+        "Event must report actual supplied amount, not requested amount");
+    assert!(event.amount < 9_000_000_i128,
+        "Actual supplied should be less than requested due to shortfall");
+    assert!(event.success, "Supply should be marked as successful even with partial fill");
+
+    // Verify vault balance: started with 10M, pool took 3M, vault should have 7M
+    let vault_balance = token_client.balance(&contract_id);
+    assert_eq!(vault_balance, 7_000_000_i128, "Vault should have 7M after partial supply");
+}
+
+#[test]
+fn test_blend_withdraw_event_reports_actual_withdrawn_with_shortfall() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (contract_id, _agent, owner, usdc_token, blend_pool) =
+        setup_vault_with_token_and_blend(&env);
+    let client = NeuroWealthVaultClient::new(&env, &contract_id);
+    let blend_client = MockBlendPoolClient::new(&env, &blend_pool);
+    let token_client = TestTokenClient::new(&env, &usdc_token);
+
+    client.set_blend_pool(&owner, &blend_pool);
+
+    // Deposit 10M USDC to vault
+    let user = Address::generate(&env);
+    mint_and_deposit(&env, &client, &usdc_token, &user, 10_000_000_i128);
+
+    // Rebalance to blend - 100% of vault balance (10M) goes to pool
+    client.rebalance(&symbol_short!("blend"), &500_i128);
+
+    // Verify pool has 10M (entire vault balance was supplied)
+    assert_eq!(blend_client.supplied(&usdc_token), 10_000_000_i128, "Pool should have 10M");
+
+    // Drain pool liquidity to force withdraw shortfall
+    // Pool has 10M, drain 9.5M, leaving 500K
+    let sink = Address::generate(&env);
+    token_client.transfer(&blend_pool, &sink, &9_500_000_i128);
+
+    let pool_balance_before = token_client.balance(&blend_pool);
+    assert_eq!(pool_balance_before, 500_000_i128, "Pool should have 500K after drain");
+
+    // Verify vault has 0 balance (everything went to pool)
+    let vault_balance_before = token_client.balance(&contract_id);
+    assert_eq!(vault_balance_before, 0_i128, "Vault should have 0");
+
+    // Record user balance before withdraw
+    let user_balance_before = token_client.balance(&user);
+
+    // User withdraws 2M - vault has 0, needs 2M from pool, but pool only has 500K
+    // So expected withdraw: 500K (from pool only, since vault is empty)
+    let requested_withdraw = 2_000_000_i128;
+    let expected_actual = 500_000_i128; // Only what pool can give
+
+    client.withdraw(&user, &requested_withdraw);
+
+    // Calculate actual withdrawn from user's balance change
+    let user_balance_after = token_client.balance(&user);
+    let withdrawn = user_balance_after.saturating_sub(user_balance_before);
+
+    // Verify actual withdrawn is less than requested due to pool shortfall
+    assert_eq!(withdrawn, expected_actual,
+        "Should only withdraw what pool has (500K)");
+    assert!(withdrawn < requested_withdraw,
+        "Actual withdrawn should be less than requested");
+
+    // Find blend withdraw events (pool was asked for 2M but only gave 500K)
+    let blend_events = find_events_by_topic(env.events().all(), &env, TOPIC_BLEND_WITHDRAW);
+    assert!(!blend_events.is_empty(), "Should have blend withdraw events");
+
+    // Get the last blend withdraw event
+    let (_, _, data) = blend_events.last().unwrap();
+    let event = BlendWithdrawEvent::try_from_val(&env, data).expect("Should be BlendWithdrawEvent");
+
+    // CRITICAL: Event must report actual received (500K), NOT requested (2M)
+    let expected_pool_withdrawn = 500_000_i128;
+    assert_eq!(event.amount_received, expected_pool_withdrawn,
+        "Event must report actual received from pool, not requested amount");
+    assert!(event.amount_received < event.requested_amount,
+        "Actual received should be less than requested due to pool shortfall");
+    assert!(event.success, "Withdraw should be marked as successful even with partial fill");
 }
