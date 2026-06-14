@@ -112,3 +112,5 @@ impl KoloSavingsContract {
         env.storage().persistent().get(&DataKey::Contributions(member)).unwrap_or(0)
     }
 }
+
+mod test;
