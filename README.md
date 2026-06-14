@@ -1,477 +1,84 @@
-# Kolo - PRD (Product Requirement Document)
+# Kolo Savings Platform - Smart Contract
 
-## 1. Product Overview
+This repository contains the core **Soroban Smart Contract** for the Kolo Savings Platform. Kolo is designed to facilitate Ajo/Esusu (rotational savings) directly on the Stellar blockchain, providing a trustless, transparent, and secure environment for community savings groups.
 
-**Name:** Kolo
+## Overview
 
-**Type:** WhatsApp-Native Savings & Payments Platform
+The smart contract ensures strict adherence to rotational savings rules:
+- **Fixed Payouts:** Enforces that payouts are exactly equal to the `contribution_amount * number_of_members`.
+- **Fair Rotations:** Tracks which members have received payouts to guarantee each member is paid exactly once per cycle.
+- **Trustless Execution:** Admin cannot arbitrarily withdraw funds or change payout amounts.
 
-**Platform:** WhatsApp + Node.js Backend + Stellar Blockchain + Soroban Smart Contracts
+## Core Features
 
-**Objective:**
-Enable individuals, families, and community savings groups to create, manage, and participate in digital savings circles directly through WhatsApp, with transparent contributions and automated payouts powered by Stellar.
+1. **Group Initialization**
+   - Initializes a new savings group with a designated admin, a specific token (e.g., USDC), a group name, and a fixed contribution amount.
+   
+2. **Member Management**
+   - The admin can add members to the group. Only registered members can contribute or receive payouts.
 
-**Target Users:**
+3. **Contributions**
+   - Members contribute the exact fixed amount to the smart contract pool.
 
-* Ajo/Esusu groups
-* Community cooperatives
-* Family savings groups
-* Students
-* Informal financial associations
-* Small business contribution clubs
+4. **Strict Payouts**
+   - The admin triggers the payout to a specific member.
+   - The contract verifies the recipient is a member, has not received a payout this cycle, and that the pool has sufficient funds.
+   - The exact pooled amount is securely transferred to the recipient.
 
----
+5. **Cycle Reset**
+   - Once a cycle is complete, the admin can reset the cycle, allowing members to receive payouts in the next rotation.
 
-## 2. Features
+## Prerequisites
 
-### 2.1 User Features
+To build and test the contract, you need to install Rust and the Soroban CLI:
 
-* Register using WhatsApp phone number
-* Automatically create Stellar wallet
-* Check wallet balance
-* Send and receive USDC
-* View transaction history
-* Receive payment notifications
+1. Install Rust:
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+2. Add the WebAssembly target:
+   ```bash
+   rustup target add wasm32-unknown-unknown
+   ```
+3. Install the Soroban CLI:
+   ```bash
+   cargo install --locked soroban-cli
+   ```
 
-### 2.2 Savings Group Features
+## Build
 
-* Create savings groups
-* Invite members through WhatsApp
-* Join groups via invitation
-* Define contribution amount
-* Define contribution frequency
-* Track member contributions
-* View group savings progress
-* Automated contribution reminders
-* Automated payout distribution
+Compile the smart contract into a WebAssembly (`.wasm`) file:
 
-### 2.3 Admin Features
+```bash
+cd contracts/savings_group
+cargo build --target wasm32-unknown-unknown --release
+```
 
-* Monitor platform activity
-* View active groups
-* Manage users
-* Review transaction logs
-* Handle dispute reports
-* Monitor smart contract performance
+The compiled contract will be located at `contracts/savings_group/target/wasm32-unknown-unknown/release/kolo_savings_group.wasm`.
 
----
+## Test
 
-## 3. Technical Architecture
+Run the comprehensive Rust unit tests to verify the strict Ajo/Esusu logic:
 
-### Components
+```bash
+cd contracts/savings_group
+cargo test
+```
 
-#### WhatsApp Interface
+## Contract Methods
 
-Provides user interaction through:
+### Write Operations
+- `initialize(admin: Address, token: Address, name: String, contribution_amount: i128)`
+- `add_member(new_member: Address)` (Requires Admin Auth)
+- `contribute(member: Address, amount: i128)` (Requires Member Auth)
+- `payout(recipient: Address)` (Requires Admin Auth)
+- `reset_cycle()` (Requires Admin Auth)
 
-* Commands
-* Interactive buttons
-* Notifications
-* Group invitations
+### Read Operations
+- `get_balance() -> i128`
+- `get_contribution(member: Address) -> i128`
+- `has_received_payout(member: Address) -> bool`
 
-#### WhatsApp Business API
+## License
 
-Handles:
-
-* Message delivery
-* User communication
-* Event webhooks
-
-#### Node.js Backend
-
-Responsible for:
-
-* User management
-* Wallet management
-* Group management
-* Transaction processing
-* Smart contract interaction
-
-#### Soroban Smart Contracts
-
-Handles:
-
-* Savings group creation
-* Contribution tracking
-* Payout execution
-* Group state management
-
-#### Stellar Blockchain
-
-Provides:
-
-* Settlement layer
-* USDC transfers
-* Transaction validation
-
-#### Database
-
-Stores:
-
-* User profiles
-* Group metadata
-* Transaction records
-* Contribution history
-
----
-
-### Flow
-
-User sends message on WhatsApp
-
-↓
-
-WhatsApp Business API receives request
-
-↓
-
-Node.js backend processes command
-
-↓
-
-Backend interacts with Soroban smart contract
-
-↓
-
-Soroban updates group state
-
-↓
-
-Stellar executes transaction
-
-↓
-
-Backend returns confirmation to WhatsApp
-
-↓
-
-User receives notification
-
----
-
-### Example Savings Flow
-
-Group Creator creates group
-
-↓
-
-Members receive invitations
-
-↓
-
-Members join group
-
-↓
-
-Members contribute USDC
-
-↓
-
-Contributions recorded in contract
-
-↓
-
-Contribution status updated
-
-↓
-
-Payout date reached
-
-↓
-
-Soroban contract triggers payout
-
-↓
-
-Recipient receives funds
-
-↓
-
-Group records updated
-
----
-
-## 4. Tech Stack
-
-### Frontend
-
-* WhatsApp Business Platform
-* WhatsApp Cloud API
-
-### Backend
-
-* Node.js
-* Express.js
-* TypeScript
-
-### Database
-
-* PostgreSQL
-
-### Blockchain
-
-* Stellar Network
-* Soroban Smart Contracts
-
-### Smart Contract Language
-
-* Rust
-* soroban-sdk
-
-### Wallet Integration
-
-* Stellar SDK
-
-### Notifications
-
-* WhatsApp Cloud API Webhooks
-
----
-
-## 5. MVP Scope
-
-### User Registration
-
-* WhatsApp onboarding
-* Wallet creation
-
-### Wallet Features
-
-* Balance inquiry
-* Transaction history
-
-### Savings Groups
-
-* Create group
-* Join group
-* Invite members
-* Contribution tracking
-
-### Payments
-
-* USDC transfers
-* Automated payouts
-
-### Notifications
-
-* Contribution reminders
-* Payout confirmations
-
----
-
-## 6. Future Enhancements
-
-### Financial Features
-
-* Rotational savings pools (Ajo/Esusu)
-* Goal-based savings
-* Emergency funds
-* Community lending
-
-### Payments
-
-* Merchant payments
-* Bill payments
-* Airtime purchases
-* Utility payments
-
-### Growth Features
-
-* Referral rewards
-* Group leaderboards
-* Savings achievements
-
-### Asset Support
-
-* Multiple stablecoins
-* Local currency on/off ramps
-* Cross-border remittances
-
----
-
-## 7. Security & Compliance
-
-### Security
-
-* Encrypted wallet storage
-* Secure webhook validation
-* Transaction signing verification
-* Smart contract validation
-
-### Compliance
-
-* Phone number verification
-* KYC integration (future phase)
-* AML monitoring (future phase)
-* Transaction audit logs
-
----
-
-## 8. Performance Considerations
-
-* Cache frequently accessed group data
-* Optimize Soroban contract storage
-* Queue transaction processing
-* Implement webhook retry mechanisms
-* Monitor Stellar network fees
-
-### Target Metrics
-
-* Response time < 3 seconds
-* Payment settlement < 5 seconds
-* Support 10,000+ users
-* Support 1,000+ active savings groups
-
----
-
-## 9. Testing Plan
-
-### Backend Testing
-
-* Unit tests for APIs
-* Wallet service tests
-* Group management tests
-
-### Smart Contract Testing
-
-* Soroban contract unit tests
-* Contribution validation tests
-* Payout execution tests
-
-### Integration Testing
-
-Full workflow:
-
-User Registration
-
-↓
-
-Wallet Creation
-
-↓
-
-Group Creation
-
-↓
-
-Member Contribution
-
-↓
-
-Automated Payout
-
-↓
-
-Transaction Verification
-
-### Load Testing
-
-* Concurrent user activity
-* High-volume contribution periods
-* Group payout events
-
----
-
-## 10. Deployment Plan
-
-### Backend
-
-Deploy on:
-
-* AWS
-* DigitalOcean
-* Railway
-
-### Database
-
-* PostgreSQL Managed Service
-
-### Blockchain
-
-* Stellar Testnet (Development)
-* Stellar Mainnet (Production)
-
-### Smart Contracts
-
-Deploy Soroban contracts:
-
-* Testnet
-* Mainnet
-
-### WhatsApp Integration
-
-* WhatsApp Cloud API
-* Webhook Infrastructure
-
-### Monitoring
-
-* Application Logs
-* Stellar Transaction Monitoring
-* Smart Contract Monitoring
-* Error Tracking
-
----
-
-## 11. Success Metrics
-
-### User Metrics
-
-* Registered users
-* Active users
-* Retention rate
-
-### Group Metrics
-
-* Groups created
-* Active groups
-* Average members per group
-
-### Financial Metrics
-
-* Total savings volume
-* Total contribution volume
-* Total payouts processed
-
-### Platform Metrics
-
-* Transaction success rate
-* Smart contract execution success rate
-* Average response time
-
----
-
-## 12. Core User Commands
-
-### Account
-
-BALANCE
-
-HISTORY
-
-PROFILE
-
-### Payments
-
-SEND 10 @john
-
-REQUEST 20 @mary
-
-### Savings Groups
-
-CREATE GROUP
-
-JOIN GROUP
-
-INVITE MEMBER
-
-GROUP STATUS
-
-CONTRIBUTE
-
-WITHDRAW
-
-### Help
-
-HELP
-
-SUPPORT
+MIT License
