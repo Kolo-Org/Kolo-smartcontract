@@ -3,6 +3,8 @@ use soroban_sdk::{
     contract, contractimpl, contracttype, token, Address, Env, String, Vec,
 };
 
+mod test;
+
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
@@ -12,6 +14,7 @@ pub enum DataKey {
     ContributionAmount,
     Members,
     Contributions(Address),
+    HasReceivedPayout(Address),
 }
 
 #[contract]
@@ -49,7 +52,8 @@ impl KoloSavingsContract {
         if !members.contains(&new_member) {
             members.push_back(new_member.clone());
             env.storage().instance().set(&DataKey::Members, &members);
-            env.storage().persistent().set(&DataKey::Contributions(new_member), &0i128);
+            env.storage().persistent().set(&DataKey::Contributions(new_member.clone()), &0i128);
+            env.storage().persistent().set(&DataKey::HasReceivedPayout(new_member), &false);
         }
     }
 
@@ -79,7 +83,8 @@ impl KoloSavingsContract {
     }
 
     /// Withdraw payout (Admin triggers payout to a member)
-    pub fn payout(env: Env, recipient: Address, amount: i128) {
+    /// Enforces strictly fixed rotational payout (Ajo/Esusu) rules.
+    pub fn payout(env: Env, recipient: Address) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
@@ -88,16 +93,35 @@ impl KoloSavingsContract {
             panic!("Recipient is not a member");
         }
 
+        let has_received: bool = env.storage().persistent().get(&DataKey::HasReceivedPayout(recipient.clone())).unwrap_or(false);
+        if has_received {
+            panic!("Recipient has already received a payout this cycle");
+        }
+
+        let contribution_amount: i128 = env.storage().instance().get(&DataKey::ContributionAmount).unwrap();
+        let pool_size = contribution_amount * (members.len() as i128);
+
         let token: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let token_client = token::Client::new(&env, &token);
         
         let contract_balance = token_client.balance(&env.current_contract_address());
-        if amount > contract_balance {
-            panic!("Insufficient funds in contract");
+        if pool_size > contract_balance {
+            panic!("Insufficient funds in contract for full payout");
         }
 
-        // Transfer tokens from contract to recipient
-        token_client.transfer(&env.current_contract_address(), &recipient, &amount);
+        env.storage().persistent().set(&DataKey::HasReceivedPayout(recipient.clone()), &true);
+        token_client.transfer(&env.current_contract_address(), &recipient, &pool_size);
+    }
+
+    /// Resets the payout cycle so members can receive payouts again.
+    pub fn reset_cycle(env: Env) {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        let members: Vec<Address> = env.storage().instance().get(&DataKey::Members).unwrap();
+        for member in members.iter() {
+            env.storage().persistent().set(&DataKey::HasReceivedPayout(member.clone()), &false);
+        }
     }
 
     /// Get contract balance
@@ -111,6 +135,9 @@ impl KoloSavingsContract {
     pub fn get_contribution(env: Env, member: Address) -> i128 {
         env.storage().persistent().get(&DataKey::Contributions(member)).unwrap_or(0)
     }
-}
 
-mod test;
+    /// Check if a member has received their payout this cycle
+    pub fn has_received_payout(env: Env, member: Address) -> bool {
+        env.storage().persistent().get(&DataKey::HasReceivedPayout(member)).unwrap_or(false)
+    }
+}
