@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, token, Address, Env, String, Vec,
+    contract, contractimpl, contracttype, symbol_short, token, Address, Env, String, Vec,
 };
 
 mod test;
@@ -41,6 +41,8 @@ impl KoloSavingsContract {
         
         let empty_members: Vec<Address> = Vec::new(&env);
         env.storage().instance().set(&DataKey::Members, &empty_members);
+
+        env.events().publish((symbol_short!("init"),), (admin, token, name, contribution_amount));
     }
 
     /// Add a member to the group (Admin only)
@@ -53,7 +55,9 @@ impl KoloSavingsContract {
             members.push_back(new_member.clone());
             env.storage().instance().set(&DataKey::Members, &members);
             env.storage().persistent().set(&DataKey::Contributions(new_member.clone()), &0i128);
-            env.storage().persistent().set(&DataKey::HasReceivedPayout(new_member), &false);
+            env.storage().persistent().set(&DataKey::HasReceivedPayout(new_member.clone()), &false);
+
+            env.events().publish((symbol_short!("add_mem"), new_member), ());
         }
     }
 
@@ -79,7 +83,9 @@ impl KoloSavingsContract {
 
         // Update member's contribution total
         let current_contribution: i128 = env.storage().persistent().get(&DataKey::Contributions(member.clone())).unwrap_or(0);
-        env.storage().persistent().set(&DataKey::Contributions(member), &(current_contribution + amount));
+        env.storage().persistent().set(&DataKey::Contributions(member.clone()), &(current_contribution + amount));
+
+        env.events().publish((symbol_short!("contrib"), member), amount);
     }
 
     /// Withdraw payout (Admin triggers payout to a member)
@@ -111,6 +117,8 @@ impl KoloSavingsContract {
 
         env.storage().persistent().set(&DataKey::HasReceivedPayout(recipient.clone()), &true);
         token_client.transfer(&env.current_contract_address(), &recipient, &pool_size);
+
+        env.events().publish((symbol_short!("payout"), recipient), pool_size);
     }
 
     /// Resets the payout cycle so members can receive payouts again.
@@ -122,6 +130,8 @@ impl KoloSavingsContract {
         for member in members.iter() {
             env.storage().persistent().set(&DataKey::HasReceivedPayout(member.clone()), &false);
         }
+
+        env.events().publish((symbol_short!("reset"),), ());
     }
 
     /// Get contract balance
