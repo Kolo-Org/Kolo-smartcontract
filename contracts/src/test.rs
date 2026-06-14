@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::Address as _, testutils::Events, Address, Env, String, symbol_short, vec, IntoVal};
+use soroban_sdk::{testutils::Address as _, testutils::Events, Address, Env, String, symbol_short, vec, FromVal, IntoVal};
 use soroban_sdk::token;
 
 #[test]
@@ -95,7 +95,7 @@ fn test_events() {
         init_event.1,
         vec![&env, symbol_short!("init").into_val(&env)]
     );
-    let init_data: (Address, Address, String, i128) = <_>::try_from_val(&env, &init_event.2).unwrap();
+    let init_data: (Address, Address, String, i128) = <_>::from_val(&env, &init_event.2);
     assert_eq!(
         init_data,
         (admin.clone(), token.clone(), name.clone(), contribution_amount)
@@ -115,6 +115,6 @@ fn test_events() {
         add_mem_event.1,
         vec![&env, symbol_short!("add_mem").into_val(&env), member1.clone().into_val(&env)]
     );
-    let add_mem_data: () = <_>::try_from_val(&env, &add_mem_event.2).unwrap();
+    let add_mem_data: () = <_>::from_val(&env, &add_mem_event.2);
     assert_eq!(add_mem_data, ());
 }
