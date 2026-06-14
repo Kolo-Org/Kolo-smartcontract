@@ -1,348 +1,477 @@
-NeuroWealth 💰
+# Kolo - PRD (Product Requirement Document)
 
-AI-Powered DeFi Yield Platform on Stellar
+## 1. Product Overview
 
-NeuroWealth is an autonomous AI investment agent that automatically manages and grows your crypto assets on the Stellar blockchain. Deposit once, let the AI find the best yield opportunities across Stellar's DeFi ecosystem — and withdraw anytime with no lock-ups.
+**Name:** Kolo
 
+**Type:** WhatsApp-Native Savings & Payments Platform
 
+**Platform:** WhatsApp + Node.js Backend + Stellar Blockchain + Soroban Smart Contracts
 
-Overview
-Traditional savings accounts offer near-zero interest. Traditional DeFi is too complex for most users. NeuroWealth bridges the gap  a simple chat interface web  powered by an AI agent that autonomously deploys your funds into the highest-yielding, safest opportunities on Stellar.
+**Objective:**
+Enable individuals, families, and community savings groups to create, manage, and participate in digital savings circles directly through WhatsApp, with transparent contributions and automated payouts powered by Stellar.
 
-Why Stellar?
+**Target Users:**
 
-Transaction fees of fractions of a penny — perfect for frequent AI-driven rebalancing
-3–5 second finality — the AI can act on market changes instantly
-Native DEX + Soroban smart contracts — composable, programmable yield strategies
-Native USDC + XLM — borderless capital movement with no friction
-Growing DeFi ecosystem — Blend (lending), Templar (borrowing), RWA protocols
+* Ajo/Esusu groups
+* Community cooperatives
+* Family savings groups
+* Students
+* Informal financial associations
+* Small business contribution clubs
 
+---
 
-Features
-FeatureDescription🤖 AI AgentAutonomous 24/7 yield optimization across Stellar DeFi💬 Natural LanguageChat to deposit, withdraw, and check balances📈 Auto-RebalancingAgent shifts funds to best opportunities automatically🔐 Non-CustodialYour funds live in audited Soroban smart contracts⚡ Instant WithdrawalsNo lock-ups, no penalties, withdraw anytime📱 WhatsApp ReadyFull functionality through WhatsApp chat interface🌍 Global AccessNo geographic restrictions, no bank account required🛡️ Security FirstSoroban contracts with ReentrancyGuard and access controls
+## 2. Features
 
-How It Works
-1. User deposits USDC via web app
-       ↓
-2. Soroban vault contract receives and records the deposit
-       ↓
-3. Contract emits a deposit event
-       ↓
-4. AI agent detects the event and deploys funds to best protocol (e.g. Blend)
-       ↓
-5. Yield accumulates 24/7 — agent rebalances hourly if better opportunities exist
-       ↓
-6. User requests withdrawal anytime → agent pulls funds → sends back in seconds
-Three Investment Strategies
+### 2.1 User Features
 
-Conservative — Stablecoin lending on Blend. Low risk, steady 3–6% APY.
-Balanced — Mix of lending + DEX liquidity provision. Medium risk, 6–10% APY.
-Growth — Aggressive multi-protocol deployment. Higher risk, 10–15% APY.
+* Register using WhatsApp phone number
+* Automatically create Stellar wallet
+* Check wallet balance
+* Send and receive USDC
+* View transaction history
+* Receive payment notifications
 
+### 2.2 Savings Group Features
 
-Tech Stack
-Smart Contracts
+* Create savings groups
+* Invite members through WhatsApp
+* Join groups via invitation
+* Define contribution amount
+* Define contribution frequency
+* Track member contributions
+* View group savings progress
+* Automated contribution reminders
+* Automated payout distribution
 
-Language: Rust (Soroban SDK 21.0.0)
-Standard: ERC-4626 inspired vault architecture
-Network: Stellar Mainnet / Testnet
-Security: OpenZeppelin-equivalent patterns (ReentrancyGuard, Pausable, Access Control)
+### 2.3 Admin Features
 
-Backend / AI Agent
+* Monitor platform activity
+* View active groups
+* Manage users
+* Review transaction logs
+* Handle dispute reports
+* Monitor smart contract performance
 
-Runtime: Node.js or Python
-Stellar SDK: @stellar/stellar-sdk
-AI: Claude API / OpenAI for natural language intent parsing
-Database: PostgreSQL / Supabase for user position tracking
-Queue: Bull / Redis for reliable transaction processing
+---
 
-Frontend
+## 3. Technical Architecture
 
-Framework: Next.js 15
-Blockchain: Stellar SDK + Freighter wallet integration
-Styling: Tailwind CSS
-Charts: Recharts for portfolio analytics
+### Components
 
-Integrations
+#### WhatsApp Interface
 
-Yield Protocols: Blend Protocol (lending), Stellar DEX (liquidity)
-Price Feeds: Stellar anchor price feeds
+Provides user interaction through:
 
+* Commands
+* Interactive buttons
+* Notifications
+* Group invitations
 
-Project Structure
-neurowealth/
-├── contracts/                  # Soroban smart contracts (Rust)
-│   └── vault/
-│       ├── Cargo.toml
-│       └── src/
-│           └── lib.rs          # Core vault contract
-├── agent/                      # AI agent backend
-│   ├── index.ts                # Agent entry point
-│   ├── stellar.ts              # Stellar transaction helpers
-│   ├── strategies/             # Yield strategy logic
-│   │   ├── conservative.ts
-│   │   ├── balanced.ts
-│   │   └── growth.ts
-│   ├── protocols/              # DeFi protocol integrations
-│   │   └── blend.ts
-│   └── nlp/                    # Natural language intent parsing
-│       └── parser.ts
-├── frontend/                   # Next.js web app
-│   ├── app/
-│   ├── components/
-│   └── lib/
-├── whatsapp/                   # WhatsApp bot handler
-│   ├── webhook.ts
-│   └── responses.ts
-├── scripts/                    # Deployment and utility scripts
-│   ├── deploy.sh
-│   └── initialize.sh
-└── README.md
+#### WhatsApp Business API
 
-Getting Started
-Prerequisites
-bash# Install Rust and the wasm target
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-rustup target add wasm32-unknown-unknown
+Handles:
 
-# Install Stellar CLI
-cargo install --locked stellar-cli --features opt
+* Message delivery
+* User communication
+* Event webhooks
 
-# Install Node.js dependencies (for agent and frontend)
-npm install
-Environment Variables
-Create a .env file in the root:
-env# Stellar
-STELLAR_NETWORK=testnet
-STELLAR_RPC_URL=https://soroban-testnet.stellar.org
-AGENT_SECRET_KEY=your_agent_stellar_secret_key
+#### Node.js Backend
 
-# Contract
-VAULT_CONTRACT_ID=your_deployed_contract_id
-USDC_TOKEN_ADDRESS=usdc_token_address_on_stellar
+Responsible for:
 
-# AI
-ANTHROPIC_API_KEY=your_anthropic_api_key
+* User management
+* Wallet management
+* Group management
+* Transaction processing
+* Smart contract interaction
 
-# WhatsApp
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_token
-WHATSAPP_FROM=whatsapp:+14155238886
+#### Soroban Smart Contracts
 
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/neurowealth
-Build and Deploy the Contract
-bash# Build the Soroban vault contract
-cd contracts
-stellar contract build
+Handles:
 
-# Deploy to testnet
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/neurowealth_vault.wasm \
-  --source deployer \
-  --network testnet
+* Savings group creation
+* Contribution tracking
+* Payout execution
+* Group state management
 
-# Initialize the contract with your agent address and USDC token
-stellar contract invoke \
-  --id YOUR_CONTRACT_ID \
-  --source deployer \
-  --network testnet \
-  -- \
-  initialize \
-  --agent YOUR_AGENT_ADDRESS \
-  --usdc_token USDC_TOKEN_ADDRESS
-Run the AI Agent
-bashcd agent
-npm install
-npm run dev        # development
-npm run start      # production
-Run the Frontend
-bashcd frontend
-npm install
-npm run dev        # http://localhost:3000
+#### Stellar Blockchain
 
-Smart Contract
-The core Soroban vault contract handles all on-chain fund management.
-Key Functions
-FunctionWho Can CallDescriptioninitializeOwner (once)Set agent address and USDC tokendepositAny verified userDeposit USDC into the vaultwithdrawUser (their own funds)Withdraw USDC back to walletwithdraw_allUser (their own funds)Withdraw all USDC by burning all sharesrebalanceAI Agent onlyMove funds between yield strategiesget_balanceAnyoneRead a user's current balanceget_total_depositsAnyoneRead total vault TVLtransfer_ownershipOwner onlyInitiate two-step ownership transferaccept_ownershipPending owner onlyComplete ownership transfer
-Security Model
+Provides:
 
-Users can only withdraw their own funds — enforced at the contract level via user.require_auth()
-Only the designated AI agent keypair can call rebalance — no other address can move funds between protocols
-Minimum deposit: 1 USDC. Maximum per user: 10,000 USDC (configurable)
-Emergency pause functionality available to contract owner
-Two-step ownership transfer prevents accidental ownership loss
-Vault balance verification ensures reported assets match actual holdings
-TTL extension on critical storage prevents data expiration
+* Settlement layer
+* USDC transfers
+* Transaction validation
 
+#### Database
 
-AI Agent
-The agent runs as a persistent background service with two main loops.
-Decision Loop (runs every hour)
-1. Fetch current APY from all integrated protocols (Blend, DEX pools)
-2. Compare against each user's current deployed strategy
-3. If a better opportunity exists (> 0.5% improvement), rebalance
-4. Submit rebalance transaction to vault contract
-5. Log results to database
-Intent Parser (real-time, event-driven)
-User message: "deposit 50 USDC into balanced strategy"
-       ↓
-AI parses intent: { action: "deposit", amount: 50, strategy: "balanced" }
-       ↓
-Agent builds Stellar transaction
-       ↓
-Returns confirmation: "Deposited 50 USDC. Earning ~8.2% APY in Balanced strategy."
-Supported User Intents
+Stores:
 
-deposit [amount] [optional: strategy]
-withdraw [amount or "all"]
-balance / how much do I have
-earnings / how much have I made
-switch to [conservative/balanced/growth]
-what is my APY
+* User profiles
+* Group metadata
+* Transaction records
+* Contribution history
 
+---
 
-WhatsApp Integration
-NeuroWealth is designed to be fully operable through WhatsApp, making it accessible to anyone with a smartphone — no wallet app or browser extension needed.
-User Flow
-1. User sends "hi" to NeuroWealth WhatsApp number
-2. Bot introduces itself and asks for phone number verification (OTP)
-3. OTP verified → agent creates a Stellar keypair for this user (custodial)
-4. User can now deposit, withdraw, and check balance entirely through chat
-5. Funds are secured in the Soroban vault contract under their wallet address
-Setting Up the Webhook
-bash# Your webhook endpoint receives WhatsApp messages
-POST /api/whatsapp/webhook
+### Flow
 
-# Register your webhook URL with Twilio
-# ngrok http 3000  ← for local testing
-Example Conversation
-User:    deposit 100 USDC
-Agent:   Got it! Depositing 100 USDC into your Balanced strategy.
-         This should take about 5 seconds on Stellar... ✅ Done!
-         You're now earning ~8.4% APY. I'll optimize automatically.
+User sends message on WhatsApp
 
-User:    what's my balance?
-Agent:   💰 Your NeuroWealth Portfolio
-         Balance: 100.23 USDC
-         Earnings today: +$0.23
-         Current APY: 8.4%
-         Strategy: Balanced
+↓
 
-User:    withdraw everything
-Agent:   Withdrawing 100.23 USDC... ✅ Done!
-         Funds sent to your wallet. Arrived in 4 seconds.
+WhatsApp Business API receives request
 
-Deployment
-Quick Start (Devnet)
+↓
 
-For testing and development, you can deploy to Stellar devnet in minutes:
+Node.js backend processes command
 
-1. **Get a funded devnet account**
-   ```bash
-   # Visit https://laboratory.stellar.org/#account-creator
-   # Create an account and copy the secret key
-   ```
+↓
 
-2. **Set up environment**
-   ```bash
-   # Copy the template and add your secret key
-   cp .env.devnet.template .env.devnet
-   # Edit .env.devnet and add your SOROBAN_SECRET_KEY
-   ```
+Backend interacts with Soroban smart contract
 
-3. **Build contracts**
-   ```bash
-   cd neurowealth-vault
-   cargo build --release --target wasm32-unknown-unknown
-   ```
+↓
 
-4. **Deploy to devnet**
-   ```bash
-   ./scripts/deploy-devnet.sh
-   ```
+Soroban updates group state
 
-5. **Start using the vault**
-   ```bash
-   # Source the deployed contract addresses
-   source scripts/devnet-contracts.env
-   
-   # Check your balance
-   stellar contract invoke \
-     --id $VAULT_CONTRACT_ID \
-     --source $AGENT_SECRET_KEY \
-     --network $SOROBAN_NETWORK_PASSPHRASE \
-     --rpc-url $SOROBAN_RPC_URL \
-     -- \
-     get_balance \
-     --user $AGENT_ADDRESS
-   
-   # Deposit 10 USDC
-   stellar contract invoke \
-     --id $VAULT_CONTRACT_ID \
-     --source $AGENT_SECRET_KEY \
-     --network $SOROBAN_NETWORK_PASSPHRASE \
-     --rpc-url $SOROBAN_RPC_URL \
-     -- \
-     deposit \
-     --user $AGENT_ADDRESS \
-     --amount 10000000
-   ```
+↓
 
-The deployment script will:
-- Deploy the USDC token contract
-- Deploy the NeuroWealth vault contract
-- Initialize the vault with your account as the AI agent
-- Mint 10,000 USDC for testing
-- Save all contract addresses to `scripts/devnet-contracts.env`
+Stellar executes transaction
 
-Testnet
-bash# Deploy everything to Stellar testnet
-./scripts/deploy.sh --network testnet
-Mainnet
-bash# Ensure all tests pass first
-cargo test
-npm test
+↓
 
-# Deploy to mainnet
-./scripts/deploy.sh --network mainnet
-Infrastructure (Recommended)
+Backend returns confirmation to WhatsApp
 
-Agent: Railway, Render, or a VPS (needs to run 24/7)
-Frontend: Vercel
-Database: Supabase (managed PostgreSQL)
-Webhook: Same server as agent, or a separate serverless function
+↓
 
+User receives notification
 
-Roadmap
-Phase 1 — Foundation (Current)
+---
 
- Soroban vault contract (deposit, withdraw, rebalance)
- Basic AI agent with Blend protocol integration
- Natural language intent parsing
- Web frontend with portfolio dashboard
- WhatsApp bot MVP
+### Example Savings Flow
 
-Phase 2 — Intelligence
+Group Creator creates group
 
- Multi-protocol yield aggregation (Blend + DEX liquidity pools)
- Strategy backtesting and risk scoring
- Personalized risk profiles per user
- Earnings history and projection charts
+↓
 
-Phase 3 — Scale
+Members receive invitations
 
- Real-world asset (RWA) yield strategies
- Cross-chain bridging (Stellar ↔ Ethereum via Axelar)
- Social trading — follow top-performing AI strategies
- NeuroWealth token for governance and fee sharing
+↓
 
+Members join group
 
-Contributing
-Contributions are welcome. Please open an issue first to discuss what you'd like to change.
-bash# Fork the repo, then:
-git checkout -b feature/your-feature-name
-git commit -m "feat: add your feature"
-git push origin feature/your-feature-name
-# Open a Pull Request
-Please make sure to run cargo test and npm test before submitting.
+↓
+
+Members contribute USDC
+
+↓
+
+Contributions recorded in contract
+
+↓
+
+Contribution status updated
+
+↓
+
+Payout date reached
+
+↓
+
+Soroban contract triggers payout
+
+↓
+
+Recipient receives funds
+
+↓
+
+Group records updated
+
+---
+
+## 4. Tech Stack
+
+### Frontend
+
+* WhatsApp Business Platform
+* WhatsApp Cloud API
+
+### Backend
+
+* Node.js
+* Express.js
+* TypeScript
+
+### Database
+
+* PostgreSQL
+
+### Blockchain
+
+* Stellar Network
+* Soroban Smart Contracts
+
+### Smart Contract Language
+
+* Rust
+* soroban-sdk
+
+### Wallet Integration
+
+* Stellar SDK
+
+### Notifications
+
+* WhatsApp Cloud API Webhooks
+
+---
+
+## 5. MVP Scope
+
+### User Registration
+
+* WhatsApp onboarding
+* Wallet creation
+
+### Wallet Features
+
+* Balance inquiry
+* Transaction history
+
+### Savings Groups
+
+* Create group
+* Join group
+* Invite members
+* Contribution tracking
+
+### Payments
+
+* USDC transfers
+* Automated payouts
+
+### Notifications
+
+* Contribution reminders
+* Payout confirmations
+
+---
+
+## 6. Future Enhancements
+
+### Financial Features
+
+* Rotational savings pools (Ajo/Esusu)
+* Goal-based savings
+* Emergency funds
+* Community lending
+
+### Payments
+
+* Merchant payments
+* Bill payments
+* Airtime purchases
+* Utility payments
+
+### Growth Features
+
+* Referral rewards
+* Group leaderboards
+* Savings achievements
+
+### Asset Support
+
+* Multiple stablecoins
+* Local currency on/off ramps
+* Cross-border remittances
+
+---
+
+## 7. Security & Compliance
+
+### Security
+
+* Encrypted wallet storage
+* Secure webhook validation
+* Transaction signing verification
+* Smart contract validation
+
+### Compliance
+
+* Phone number verification
+* KYC integration (future phase)
+* AML monitoring (future phase)
+* Transaction audit logs
+
+---
+
+## 8. Performance Considerations
+
+* Cache frequently accessed group data
+* Optimize Soroban contract storage
+* Queue transaction processing
+* Implement webhook retry mechanisms
+* Monitor Stellar network fees
+
+### Target Metrics
+
+* Response time < 3 seconds
+* Payment settlement < 5 seconds
+* Support 10,000+ users
+* Support 1,000+ active savings groups
+
+---
+
+## 9. Testing Plan
+
+### Backend Testing
+
+* Unit tests for APIs
+* Wallet service tests
+* Group management tests
+
+### Smart Contract Testing
+
+* Soroban contract unit tests
+* Contribution validation tests
+* Payout execution tests
+
+### Integration Testing
+
+Full workflow:
+
+User Registration
+
+↓
+
+Wallet Creation
+
+↓
+
+Group Creation
+
+↓
+
+Member Contribution
+
+↓
+
+Automated Payout
+
+↓
+
+Transaction Verification
+
+### Load Testing
+
+* Concurrent user activity
+* High-volume contribution periods
+* Group payout events
+
+---
+
+## 10. Deployment Plan
+
+### Backend
+
+Deploy on:
+
+* AWS
+* DigitalOcean
+* Railway
+
+### Database
+
+* PostgreSQL Managed Service
+
+### Blockchain
+
+* Stellar Testnet (Development)
+* Stellar Mainnet (Production)
+
+### Smart Contracts
+
+Deploy Soroban contracts:
+
+* Testnet
+* Mainnet
+
+### WhatsApp Integration
+
+* WhatsApp Cloud API
+* Webhook Infrastructure
+
+### Monitoring
+
+* Application Logs
+* Stellar Transaction Monitoring
+* Smart Contract Monitoring
+* Error Tracking
+
+---
+
+## 11. Success Metrics
+
+### User Metrics
+
+* Registered users
+* Active users
+* Retention rate
+
+### Group Metrics
+
+* Groups created
+* Active groups
+* Average members per group
+
+### Financial Metrics
+
+* Total savings volume
+* Total contribution volume
+* Total payouts processed
+
+### Platform Metrics
+
+* Transaction success rate
+* Smart contract execution success rate
+* Average response time
+
+---
+
+## 12. Core User Commands
+
+### Account
+
+BALANCE
+
+HISTORY
+
+PROFILE
+
+### Payments
+
+SEND 10 @john
+
+REQUEST 20 @mary
+
+### Savings Groups
+
+CREATE GROUP
+
+JOIN GROUP
+
+INVITE MEMBER
+
+GROUP STATUS
+
+CONTRIBUTE
+
+WITHDRAW
+
+### Help
+
+HELP
+
+SUPPORT
