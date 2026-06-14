@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::Address as _, testutils::Events, Address, Env, String, symbol_short, vec, IntoVal};
 use soroban_sdk::token;
 
 #[test]
@@ -70,4 +70,50 @@ fn test_contribute_not_member() {
     env.mock_all_auths();
     let not_member = Address::generate(&env);
     client.contribute(&not_member, &1000);
+}
+
+#[test]
+fn test_events() {
+    let env = Env::default();
+    let contract_id = env.register_contract(None, KoloSavingsContract);
+    let client = KoloSavingsContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token = Address::generate(&env);
+    let name = String::from_str(&env, "Test Group");
+    let contribution_amount = 1000;
+
+    // 1. Test Initialize Event
+    client.initialize(&admin, &token, &name, &contribution_amount);
+    
+    let events = env.events().all();
+    assert_eq!(events.len(), 1);
+    
+    let init_event = events.get(0).unwrap();
+    assert_eq!(init_event.0, contract_id);
+    assert_eq!(
+        init_event.1,
+        vec![&env, symbol_short!("init").into_val(&env)]
+    );
+    // The data tuple: (admin, token, name, contribution_amount)
+    assert_eq!(
+        init_event.2,
+        (admin.clone(), token.clone(), name.clone(), contribution_amount).into_val(&env)
+    );
+
+    // 2. Test Add Member Event
+    env.mock_all_auths();
+    let member1 = Address::generate(&env);
+    client.add_member(&member1);
+    
+    let events = env.events().all();
+    assert_eq!(events.len(), 2); // 2 events now
+    
+    let add_mem_event = events.get(1).unwrap();
+    assert_eq!(add_mem_event.0, contract_id);
+    assert_eq!(
+        add_mem_event.1,
+        vec![&env, symbol_short!("add_mem").into_val(&env), member1.clone().into_val(&env)]
+    );
+    assert_eq!(add_mem_event.2, ().into_val(&env));
 }
