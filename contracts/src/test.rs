@@ -95,10 +95,10 @@ fn test_events() {
         init_event.1,
         vec![&env, symbol_short!("init").into_val(&env)]
     );
-    // The data tuple: (admin, token, name, contribution_amount)
+    let init_data: (Address, Address, String, i128) = <_>::try_from_val(&env, &init_event.2).unwrap();
     assert_eq!(
-        init_event.2,
-        (admin.clone(), token.clone(), name.clone(), contribution_amount).into_val(&env)
+        init_data,
+        (admin.clone(), token.clone(), name.clone(), contribution_amount)
     );
 
     // 2. Test Add Member Event
@@ -115,5 +115,6 @@ fn test_events() {
         add_mem_event.1,
         vec![&env, symbol_short!("add_mem").into_val(&env), member1.clone().into_val(&env)]
     );
-    assert_eq!(add_mem_event.2, ().into_val(&env));
+    let add_mem_data: () = <_>::try_from_val(&env, &add_mem_event.2).unwrap();
+    assert_eq!(add_mem_data, ());
 }
