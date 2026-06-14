@@ -50,18 +50,18 @@ To build and test the contract, you need to install Rust and the Soroban CLI:
 Compile the smart contract into a WebAssembly (`.wasm`) file:
 
 ```bash
-cd contracts/savings_group
+cd contracts
 cargo build --target wasm32-unknown-unknown --release
 ```
 
-The compiled contract will be located at `contracts/savings_group/target/wasm32-unknown-unknown/release/kolo_savings_group.wasm`.
+The compiled contract will be located at `contracts/target/wasm32-unknown-unknown/release/kolo_savings_group.wasm`.
 
 ## Test
 
 Run the comprehensive Rust unit tests to verify the strict Ajo/Esusu logic:
 
 ```bash
-cd contracts/savings_group
+cd contracts
 cargo test
 ```
 
