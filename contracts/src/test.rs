@@ -7,6 +7,7 @@ use soroban_sdk::token;
 #[test]
 fn test_initialize() {
     let env = Env::default();
+    env.mock_all_auths();
     let contract_id = env.register_contract(None, KoloSavingsContract);
     let client = KoloSavingsContractClient::new(&env, &contract_id);
 
@@ -22,6 +23,7 @@ fn test_initialize() {
 #[should_panic(expected = "Already initialized")]
 fn test_double_initialize() {
     let env = Env::default();
+    env.mock_all_auths();
     let contract_id = env.register_contract(None, KoloSavingsContract);
     let client = KoloSavingsContractClient::new(&env, &contract_id);
 
@@ -37,6 +39,7 @@ fn test_double_initialize() {
 #[test]
 fn test_add_member() {
     let env = Env::default();
+    env.mock_all_auths();
     let contract_id = env.register_contract(None, KoloSavingsContract);
     let client = KoloSavingsContractClient::new(&env, &contract_id);
 
@@ -56,6 +59,7 @@ fn test_add_member() {
 #[should_panic(expected = "Not a member")]
 fn test_contribute_not_member() {
     let env = Env::default();
+    env.mock_all_auths();
     let contract_id = env.register_contract(None, KoloSavingsContract);
     let client = KoloSavingsContractClient::new(&env, &contract_id);
 
@@ -75,6 +79,7 @@ fn test_contribute_not_member() {
 #[test]
 fn test_events() {
     let env = Env::default();
+    env.mock_all_auths();
     let contract_id = env.register_contract(None, KoloSavingsContract);
     let client = KoloSavingsContractClient::new(&env, &contract_id);
 
@@ -102,7 +107,6 @@ fn test_events() {
     );
 
     // 2. Test Add Member Event
-    env.mock_all_auths();
     let member1 = Address::generate(&env);
     client.add_member(&member1);
     
