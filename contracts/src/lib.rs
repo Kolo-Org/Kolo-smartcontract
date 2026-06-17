@@ -5,6 +5,14 @@ use soroban_sdk::{
 
 mod test;
 
+const LEDGERS_TO_LIVE: u32 = 518_400; // ~30 days at 5s/ledger
+
+fn extend_instance_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(LEDGERS_TO_LIVE / 2, LEDGERS_TO_LIVE);
+}
+
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
@@ -45,6 +53,7 @@ impl KoloSavingsContract {
         }
 
         admin.require_auth();
+        extend_instance_ttl(&env);
 
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Token, &token);
@@ -61,6 +70,7 @@ impl KoloSavingsContract {
     pub fn add_member(env: Env, new_member: Address) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        extend_instance_ttl(&env);
 
         let mut members: Vec<Address> = env.storage().instance().get(&DataKey::Members).unwrap();
         if !members.contains(&new_member) {
@@ -77,6 +87,7 @@ impl KoloSavingsContract {
     /// Contribute to the pool
     pub fn contribute(env: Env, member: Address, amount: i128) {
         member.require_auth();
+        extend_instance_ttl(&env);
 
         let expected_amount: i128 = env.storage().instance().get(&DataKey::ContributionAmount).unwrap();
         if amount != expected_amount {
@@ -112,6 +123,9 @@ impl KoloSavingsContract {
         let current_contribution: i128 = env.storage().persistent().get(&DataKey::Contributions(member.clone())).unwrap_or(0);
         env.storage().persistent().set(&DataKey::Contributions(member.clone()), &(current_contribution + amount));
 
+        env.storage().persistent().extend_ttl(&DataKey::Contributions(member.clone()), LEDGERS_TO_LIVE / 2, LEDGERS_TO_LIVE);
+        env.storage().persistent().extend_ttl(&DataKey::HasContributedThisCycle(member.clone()), LEDGERS_TO_LIVE / 2, LEDGERS_TO_LIVE);
+
         env.events().publish((symbol_short!("contrib"), member), amount);
     }
 
@@ -120,6 +134,7 @@ impl KoloSavingsContract {
     pub fn payout(env: Env, recipient: Address) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        extend_instance_ttl(&env);
 
         let members: Vec<Address> = env.storage().instance().get(&DataKey::Members).unwrap();
         if !members.contains(&recipient) {
@@ -146,6 +161,7 @@ impl KoloSavingsContract {
         }
 
         env.storage().persistent().set(&DataKey::HasReceivedPayout(recipient.clone()), &true);
+        env.storage().persistent().extend_ttl(&DataKey::HasReceivedPayout(recipient.clone()), LEDGERS_TO_LIVE / 2, LEDGERS_TO_LIVE);
         token_client.transfer(&env.current_contract_address(), &recipient, &pool_size);
 
         env.events().publish((symbol_short!("payout"), recipient), pool_size);
@@ -155,11 +171,14 @@ impl KoloSavingsContract {
     pub fn reset_cycle(env: Env) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
+        extend_instance_ttl(&env);
 
         let members: Vec<Address> = env.storage().instance().get(&DataKey::Members).unwrap();
         for member in members.iter() {
             env.storage().persistent().set(&DataKey::HasReceivedPayout(member.clone()), &false);
             env.storage().persistent().set(&DataKey::HasContributedThisCycle(member.clone()), &false);
+            env.storage().persistent().extend_ttl(&DataKey::HasReceivedPayout(member.clone()), LEDGERS_TO_LIVE / 2, LEDGERS_TO_LIVE);
+            env.storage().persistent().extend_ttl(&DataKey::HasContributedThisCycle(member.clone()), LEDGERS_TO_LIVE / 2, LEDGERS_TO_LIVE);
         }
 
         // Clear the frozen member count so it is re-established at the next cycle's first contribution
@@ -170,18 +189,19 @@ impl KoloSavingsContract {
 
     /// Get contract balance
     pub fn get_balance(env: Env) -> i128 {
+        extend_instance_ttl(&env);
         let token: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let token_client = token::Client::new(&env, &token);
         token_client.balance(&env.current_contract_address())
     }
 
-    /// Get a member's total contributions
     pub fn get_contribution(env: Env, member: Address) -> i128 {
+        env.storage().persistent().extend_ttl(&DataKey::Contributions(member.clone()), LEDGERS_TO_LIVE / 2, LEDGERS_TO_LIVE);
         env.storage().persistent().get(&DataKey::Contributions(member)).unwrap_or(0)
     }
 
-    /// Check if a member has received their payout this cycle
     pub fn has_received_payout(env: Env, member: Address) -> bool {
+        env.storage().persistent().extend_ttl(&DataKey::HasReceivedPayout(member.clone()), LEDGERS_TO_LIVE / 2, LEDGERS_TO_LIVE);
         env.storage().persistent().get(&DataKey::HasReceivedPayout(member)).unwrap_or(false)
     }
 }
