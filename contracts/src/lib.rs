@@ -15,6 +15,7 @@ pub enum DataKey {
     Members,
     Contributions(Address),
     HasReceivedPayout(Address),
+    CycleMemberCount,
 }
 
 #[contract]
@@ -77,6 +78,12 @@ impl KoloSavingsContract {
             panic!("Not a member");
         }
 
+        // Freeze the member count at the start of a cycle on the first contribution
+        if !env.storage().instance().has(&DataKey::CycleMemberCount) {
+            let count = members.len() as i128;
+            env.storage().instance().set(&DataKey::CycleMemberCount, &count);
+        }
+
         let token: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let token_client = token::Client::new(&env, &token);
         
@@ -107,7 +114,10 @@ impl KoloSavingsContract {
         }
 
         let contribution_amount: i128 = env.storage().instance().get(&DataKey::ContributionAmount).unwrap();
-        let pool_size = contribution_amount * (members.len() as i128);
+        let frozen_count: i128 = env.storage().instance()
+            .get(&DataKey::CycleMemberCount)
+            .expect("No active cycle");
+        let pool_size = contribution_amount * frozen_count;
 
         let token: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let token_client = token::Client::new(&env, &token);
@@ -132,6 +142,9 @@ impl KoloSavingsContract {
         for member in members.iter() {
             env.storage().persistent().set(&DataKey::HasReceivedPayout(member.clone()), &false);
         }
+
+        // Clear the frozen member count so it is re-established at the next cycle's first contribution
+        env.storage().instance().remove(&DataKey::CycleMemberCount);
 
         env.events().publish((symbol_short!("reset"),), ());
     }
