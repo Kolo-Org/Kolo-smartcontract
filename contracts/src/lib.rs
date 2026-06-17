@@ -15,6 +15,7 @@ pub enum DataKey {
     Members,
     Contributions(Address),
     HasReceivedPayout(Address),
+    HasContributedThisCycle(Address),
     CycleMemberCount,
 }
 
@@ -59,6 +60,7 @@ impl KoloSavingsContract {
             env.storage().instance().set(&DataKey::Members, &members);
             env.storage().persistent().set(&DataKey::Contributions(new_member.clone()), &0i128);
             env.storage().persistent().set(&DataKey::HasReceivedPayout(new_member.clone()), &false);
+            env.storage().persistent().set(&DataKey::HasContributedThisCycle(new_member.clone()), &false);
 
             env.events().publish((symbol_short!("add_mem"), new_member), ());
         }
@@ -84,13 +86,21 @@ impl KoloSavingsContract {
             env.storage().instance().set(&DataKey::CycleMemberCount, &count);
         }
 
+        let has_contributed: bool = env.storage().persistent()
+            .get(&DataKey::HasContributedThisCycle(member.clone()))
+            .unwrap_or(false);
+        if has_contributed {
+            panic!("Already contributed this cycle");
+        }
+
         let token: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let token_client = token::Client::new(&env, &token);
-        
+
         // Transfer tokens from the member to this contract
         token_client.transfer(&member, &env.current_contract_address(), &amount);
 
-        // Update member's contribution total
+        env.storage().persistent().set(&DataKey::HasContributedThisCycle(member.clone()), &true);
+
         let current_contribution: i128 = env.storage().persistent().get(&DataKey::Contributions(member.clone())).unwrap_or(0);
         env.storage().persistent().set(&DataKey::Contributions(member.clone()), &(current_contribution + amount));
 
@@ -141,6 +151,7 @@ impl KoloSavingsContract {
         let members: Vec<Address> = env.storage().instance().get(&DataKey::Members).unwrap();
         for member in members.iter() {
             env.storage().persistent().set(&DataKey::HasReceivedPayout(member.clone()), &false);
+            env.storage().persistent().set(&DataKey::HasContributedThisCycle(member.clone()), &false);
         }
 
         // Clear the frozen member count so it is re-established at the next cycle's first contribution
