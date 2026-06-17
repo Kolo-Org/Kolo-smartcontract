@@ -17,6 +17,14 @@ pub enum DataKey {
     HasReceivedPayout(Address),
     HasContributedThisCycle(Address),
     CycleMemberCount,
+    User(Address),
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct User {
+    pub wallet_address: Address,
+    pub joined_groups: Vec<u32>,
 }
 
 #[contract]
