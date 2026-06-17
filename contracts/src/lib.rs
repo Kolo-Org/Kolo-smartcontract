@@ -33,7 +33,9 @@ impl KoloSavingsContract {
         if env.storage().instance().has(&DataKey::Admin) {
             panic!("Already initialized");
         }
-        
+
+        admin.require_auth();
+
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Token, &token);
         env.storage().instance().set(&DataKey::Name, &name);
