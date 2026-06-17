@@ -77,6 +77,56 @@ fn test_contribute_not_member() {
 }
 
 #[test]
+#[should_panic(expected = "Already contributed this cycle")]
+fn test_contribute_twice_same_cycle_is_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register_contract(None, KoloSavingsContract);
+    let client = KoloSavingsContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token = env.register_stellar_asset_contract(token_admin.clone());
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    let name = String::from_str(&env, "Test Group");
+
+    client.initialize(&admin, &token, &name, &1000i128);
+
+    let member = Address::generate(&env);
+    client.add_member(&member);
+    token_client.mint(&member, &5000);
+
+    client.contribute(&member, &1000);
+    client.contribute(&member, &1000);
+}
+
+#[test]
+fn test_contribute_allowed_after_reset() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register_contract(None, KoloSavingsContract);
+    let client = KoloSavingsContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token = env.register_stellar_asset_contract(token_admin.clone());
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    let name = String::from_str(&env, "Test Group");
+
+    client.initialize(&admin, &token, &name, &1000i128);
+
+    let member = Address::generate(&env);
+    client.add_member(&member);
+    token_client.mint(&member, &5000);
+
+    client.contribute(&member, &1000);
+    client.reset_cycle();
+    client.contribute(&member, &1000);
+
+    assert_eq!(client.get_contribution(&member), 2000);
+}
+
+#[test]
 fn test_events() {
     let env = Env::default();
     env.mock_all_auths();
