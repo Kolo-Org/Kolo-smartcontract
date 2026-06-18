@@ -265,7 +265,7 @@
             },
             "ext": "v0"
           },
-          4095
+          518400
         ]
       ],
       [
@@ -310,7 +310,7 @@
             },
             "ext": "v0"
           },
-          4095
+          518400
         ]
       ],
       [
@@ -470,7 +470,7 @@
             },
             "ext": "v0"
           },
-          4095
+          518400
         ]
       ],
       [
@@ -881,7 +881,7 @@
             },
             "ext": "v0"
           },
-          4095
+          518400
         ]
       ]
     ]
@@ -1489,7 +1489,7 @@
             "data": {
               "vec": [
                 {
-                  "string": "caught panic 'Already contributed this cycle' from contract function 'Symbol(obj#371)'"
+                  "string": "caught panic 'Already contributed this cycle' from contract function 'Symbol(obj#379)'"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
