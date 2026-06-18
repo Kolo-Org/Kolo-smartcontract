@@ -1,0 +1,37 @@
+name: Rust CI
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    name: Build & Test Soroban Contract
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust and wasm32 target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+
+      - name: Install system dependencies for Soroban CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev libudev-dev pkg-config
+
+      - name: Install Soroban CLI
+        run: cargo install --locked soroban-cli
+
+      - name: Run unit tests
+        run: cargo test
+
+      - name: Build contract for wasm (release)
+        run: cargo build --target wasm32-unknown-unknown --release
