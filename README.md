@@ -1,7 +1,7 @@
 # Kolo Savings Platform - Smart Contract
 
 This repository contains the core **Soroban Smart Contract** for the Kolo Savings Platform. Kolo is designed to facilitate Ajo/Esusu (rotational savings) directly on the Stellar blockchain, providing a trustless, transparent, and secure environment for community savings groups.
-
+ 
 ## Overview
 
 The smart contract ensures strict adherence to rotational savings rules:
