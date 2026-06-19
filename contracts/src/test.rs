@@ -1,8 +1,12 @@
 #![cfg(test)]
+#![allow(deprecated)]
 
 use super::*;
-use soroban_sdk::{testutils::Address as _, testutils::Events, Address, Env, String, symbol_short, vec, FromVal, IntoVal};
 use soroban_sdk::token;
+use soroban_sdk::{
+    symbol_short, testutils::Address as _, testutils::Events, vec, Address, Env, FromVal, IntoVal,
+    String,
+};
 
 #[test]
 fn test_initialize() {
@@ -140,10 +144,10 @@ fn test_events() {
 
     // 1. Test Initialize Event
     client.initialize(&admin, &token, &name, &contribution_amount);
-    
+
     let events = env.events().all();
     assert_eq!(events.len(), 1);
-    
+
     let init_event = events.get(0).unwrap();
     assert_eq!(init_event.0, contract_id);
     assert_eq!(
@@ -153,21 +157,30 @@ fn test_events() {
     let init_data: (Address, Address, String, i128) = <_>::from_val(&env, &init_event.2);
     assert_eq!(
         init_data,
-        (admin.clone(), token.clone(), name.clone(), contribution_amount)
+        (
+            admin.clone(),
+            token.clone(),
+            name.clone(),
+            contribution_amount
+        )
     );
 
     // 2. Test Add Member Event
     let member1 = Address::generate(&env);
     client.add_member(&member1);
-    
+
     let events = env.events().all();
     assert_eq!(events.len(), 2); // 2 events now
-    
+
     let add_mem_event = events.get(1).unwrap();
     assert_eq!(add_mem_event.0, contract_id);
     assert_eq!(
         add_mem_event.1,
-        vec![&env, symbol_short!("add_mem").into_val(&env), member1.clone().into_val(&env)]
+        vec![
+            &env,
+            symbol_short!("add_mem").into_val(&env),
+            member1.clone().into_val(&env)
+        ]
     );
     let add_mem_data: () = <_>::from_val(&env, &add_mem_event.2);
     assert_eq!(add_mem_data, ());
