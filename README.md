@@ -1,7 +1,7 @@
 # Kolo Savings Platform - Smart Contract
 
 This repository contains the core **Soroban Smart Contract** for the Kolo Savings Platform. Kolo is designed to facilitate Ajo/Esusu (rotational savings) directly on the Stellar blockchain, providing a trustless, transparent, and secure environment for community savings groups.
-
+ 
 ## Overview
 
 The smart contract ensures strict adherence to rotational savings rules:
@@ -44,6 +44,17 @@ To build and test the contract, you need to install Rust and the Soroban CLI:
    ```bash
    cargo install --locked soroban-cli
    ```
+
+## Pre-commit Hooks
+
+To ensure code quality, this repository uses pre-commit hooks to automatically format and lint Rust code before committing.
+
+To install the hooks, run:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
 
 ## Build
 
