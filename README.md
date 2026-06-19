@@ -45,6 +45,17 @@ To build and test the contract, you need to install Rust and the Soroban CLI:
    cargo install --locked soroban-cli
    ```
 
+## Pre-commit Hooks
+
+To ensure code quality, this repository uses pre-commit hooks to automatically format and lint Rust code before committing.
+
+To install the hooks, run:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
 ## Build
 
 Compile the smart contract into a WebAssembly (`.wasm`) file:
