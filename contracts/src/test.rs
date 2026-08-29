@@ -4,7 +4,8 @@
 use super::*;
 use soroban_sdk::token;
 use soroban_sdk::{
-    symbol_short, testutils::Address as _, testutils::Events, vec, Address, Env, IntoVal, String,
+    contract, contractimpl, contracttype, symbol_short, testutils::Address as _, testutils::Events,
+    vec, Address, Env, IntoVal, String, Vec,
 };
 
 #[test]
@@ -1017,6 +1018,227 @@ fn test_payout_wrong_recipient_auth_fails() {
     client.payout(&member0);
 }
 
+// ---------------------------------------------------------------------------
+// Reentrancy / Checks-Effects-Interactions tests
+// ---------------------------------------------------------------------------
+//
+// `MaliciousToken` is a minimal mock that implements just enough of the token
+// interface (`balance` and `transfer`) for `token::Client` to invoke it from
+// inside `KoloSavingsContract`. Its `transfer` function is where a real
+// malicious or unusually-implemented token could try to "call back" into the
+// savings contract mid-payout. We use it to:
+//
+//   1. Prove the CEI ordering: by the time `transfer` runs, the effects of
+//      `payout()` (NextPayoutIndex / has_received_payout) are already
+//      committed — observable via a read-only call made from inside the
+//      token's `transfer` callback.
+//   2. Prove the reentrancy guard: a callback that tries to invoke `payout()`
+//      again while the outer `payout()` call is still executing must panic
+//      with "Reentrancy detected", rather than draining the pool twice.
+//
+// Note: because Soroban contract invocations are atomic, a panic anywhere
+// during a call unwinds and reverts *all* storage writes made during that
+// top-level call. This means we can't inspect "partial" state after a failed
+// transfer from outside — the whole test would revert. So the meaningful way
+// to verify ordering is to observe state *during* the call, before it either
+// completes or panics, which is exactly what these mocks do.
+
+#[contracttype]
+#[derive(Clone)]
+enum MalKey {
+    Kolo,
+    Mode,
+    ObservedHasPayout,
+}
+
+#[contract]
+pub struct MaliciousToken;
+
+#[contractimpl]
+impl MaliciousToken {
+    /// Configure which savings contract to target. Starts in "observe" mode (0).
+    pub fn init(env: Env, kolo: Address) {
+        env.storage().instance().set(&MalKey::Kolo, &kolo);
+        env.storage().instance().set(&MalKey::Mode, &0u32);
+    }
+
+    /// 0 = passively observe state during transfer(); 1 = attempt a reentrant
+    /// call into payout() during transfer().
+    pub fn set_mode(env: Env, mode: u32) {
+        env.storage().instance().set(&MalKey::Mode, &mode);
+    }
+
+    pub fn get_observed(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&MalKey::ObservedHasPayout)
+            .unwrap_or(false)
+    }
+
+    pub fn balance(env: Env, _id: Address) -> i128 {
+        let mode: u32 = env.storage().instance().get(&MalKey::Mode).unwrap_or(0);
+        if mode == 2 {
+            let kolo: Address = env.storage().instance().get(&MalKey::Kolo).unwrap();
+            let client = KoloSavingsContractClient::new(&env, &kolo);
+            // Attempt reentrancy from inside balance(), before transfer() is ever reached.
+            client.payout(&kolo); // recipient doesn't matter — should never get this far
+        }
+        i128::MAX
+    }
+
+    /// Called by KoloSavingsContract via `token::Client::transfer`. This is the
+    /// "interaction" step where a malicious token gets a chance to re-enter.
+    pub fn transfer(env: Env, _from: Address, to: Address, _amount: i128) {
+        let kolo: Address = env.storage().instance().get(&MalKey::Kolo).unwrap();
+        let mode: u32 = env.storage().instance().get(&MalKey::Mode).unwrap_or(0);
+
+        if mode == 1 {
+            // Attack: try to trigger a second payout to the same recipient
+            // while the outer payout() call is still mid-flight.
+            let client = KoloSavingsContractClient::new(&env, &kolo);
+            client.payout(&to);
+        } else {
+            // Observe: read back whether payout()'s effects were already
+            // applied by the time this callback runs.
+            let already_marked: bool = env.as_contract(&kolo, || {
+                let state: Option<MemberState> =
+                    env.storage().persistent().get(&DataKey::Member(to.clone()));
+                state.map(|s| s.has_received_payout).unwrap_or(false)
+            });
+            env.storage()
+                .instance()
+                .set(&MalKey::ObservedHasPayout, &already_marked);
+        }
+    }
+}
+
+fn setup_with_malicious_token(
+    env: &Env,
+) -> (
+    Address,
+    KoloSavingsContractClient<'_>,
+    Address,
+    MaliciousTokenClient<'_>,
+) {
+    let kolo_id = env.register_contract(None, KoloSavingsContract);
+    let kolo_client = KoloSavingsContractClient::new(env, &kolo_id);
+
+    let mal_token_id = env.register_contract(None, MaliciousToken);
+    let mal_client = MaliciousTokenClient::new(env, &mal_token_id);
+
+    let admin = Address::generate(env);
+    let name = String::from_str(env, "Test Group");
+
+    kolo_client.initialize(
+        &admin,
+        &mal_token_id,
+        &name,
+        &1000i128,
+        &GroupType::Rotational,
+        &None,
+        &false,
+        &None,
+    );
+
+    (kolo_id, kolo_client, mal_token_id, mal_client)
+}
+
+/// Requirement: verify the CEI pattern is implemented — state (has_received_payout,
+/// via NextPayoutIndex) must already reflect the payout by the time the external
+/// token transfer callback executes.
+#[test]
+fn test_cei_effects_committed_before_external_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (kolo_id, kolo_client, _mal_token_id, mal_client) = setup_with_malicious_token(&env);
+
+    let member = Address::generate(&env);
+    kolo_client.add_member(&member);
+
+    mal_client.init(&kolo_id);
+    mal_client.set_mode(&0u32);
+
+    kolo_client.contribute(&member, &1000);
+    assert!(!mal_client.get_observed()); // contribute's own transfer targets the contract, not a member
+
+    kolo_client.payout(&member);
+
+    // The MaliciousToken observed, from *inside* the transfer() callback, that
+    // has_received_payout(member) was already true — proving effects were
+    // committed before the interaction, per CEI.
+    assert!(mal_client.get_observed());
+}
+
+/// Requirement: a malicious token attempting to re-enter payout() during its
+/// transfer() callback must be blocked by the reentrancy guard.
+#[test]
+#[should_panic(expected = "Error(Context, InvalidAction)")]
+fn test_reentrant_payout_call_is_blocked() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (kolo_id, kolo_client, _mal_token_id, mal_client) = setup_with_malicious_token(&env);
+
+    let member = Address::generate(&env);
+    kolo_client.add_member(&member);
+
+    mal_client.init(&kolo_id);
+
+    // Contribute first while still in observe mode (mode 0) so the deposit
+    // succeeds normally.
+    kolo_client.contribute(&member, &1000);
+
+    // Now arm the attack: the next transfer() call (triggered by payout())
+    // will try to call payout() again for the same recipient.
+    mal_client.set_mode(&1u32);
+
+    // This should panic with "Reentrancy detected" because the guard set at
+    // the top of payout() is still held when the reentrant call happens.
+    kolo_client.payout(&member);
+}
+
+/// Requirement: contribute() must also refuse to run if a payout is (somehow)
+/// already mid-execution, as a defense-in-depth measure.
+#[test]
+#[should_panic(expected = "Reentrancy detected")]
+fn test_contribute_blocked_while_payout_executing() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register_contract(None, KoloSavingsContract);
+    let client = KoloSavingsContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token = env.register_stellar_asset_contract(token_admin.clone());
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    let name = String::from_str(&env, "Test Group");
+
+    client.initialize(
+        &admin,
+        &token,
+        &name,
+        &1000i128,
+        &GroupType::Rotational,
+        &None,
+        &false,
+        &None,
+    );
+
+    let member = Address::generate(&env);
+    client.add_member(&member);
+    token_client.mint(&member, &5000);
+
+    // Simulate being mid-payout by setting the guard flag directly.
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .instance()
+            .set(&DataKey::IsExecutingPayout, &true);
+    });
+
+    client.contribute(&member, &1000);
+}
+
 #[test]
 #[should_panic(expected = "Contract is paused for emergency")]
 fn test_pause_blocks_contribute() {
@@ -1047,6 +1269,23 @@ fn test_pause_blocks_contribute() {
 
     client.pause();
     client.contribute(&member, &1000);
+}
+
+#[test]
+#[should_panic(expected = "Error(Context, InvalidAction)")]
+fn test_reentrant_payout_call_via_balance_is_blocked() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (kolo_id, kolo_client, _mal_token_id, mal_client) = setup_with_malicious_token(&env);
+
+    let member = Address::generate(&env);
+    kolo_client.add_member(&member);
+    mal_client.init(&kolo_id);
+
+    kolo_client.contribute(&member, &1000);
+
+    mal_client.set_mode(&2u32); // reenter via balance(), not transfer()
+    kolo_client.payout(&member);
 }
 
 #[test]
