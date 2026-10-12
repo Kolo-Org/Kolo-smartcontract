@@ -1460,3 +1460,103 @@ fn test_emergency_withdraw_twice_panics() {
     // Second call should panic — no contribution left this cycle.
     client.emergency_withdraw(&member);
 }
+
+// ============================================================
+// ISSUE #27 — Event-Driven Automation and Pool Fullness Triggers
+// ============================================================
+
+#[test]
+fn test_event_driven_pool_fullness_and_cycle_done_events() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register_contract(None, KoloSavingsContract);
+    let client = KoloSavingsContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token = env.register_stellar_asset_contract(token_admin.clone());
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    let name = String::from_str(&env, "Auto Payout Group");
+    let contribution_amount = 1000i128;
+
+    client.initialize(
+        &admin,
+        &token,
+        &name,
+        &contribution_amount,
+        &GroupType::Rotational,
+        &None,
+        &false,
+        &None,
+    );
+
+    let member1 = Address::generate(&env);
+    let member2 = Address::generate(&env);
+    client.add_member(&member1);
+    client.add_member(&member2);
+
+    token_client.mint(&member1, &5000);
+    token_client.mint(&member2, &5000);
+
+    // Member 1 contributes: 1/2 members contributed -> is_pool_full = false
+    client.contribute(&member1, &1000);
+    let events1 = env.events().all();
+    let has_c1 = events1.events().iter().any(|e| {
+        let soroban_sdk::xdr::ContractEventBody::V0(ref v0) = e.body;
+        if let Some(soroban_sdk::xdr::ScVal::Symbol(ref sym)) = v0.topics.first() {
+            if sym.0.as_slice() == b"contrib" {
+                if let soroban_sdk::xdr::ScVal::Vec(Some(ref vec)) = v0.data {
+                    return vec.get(2) == Some(&soroban_sdk::xdr::ScVal::Bool(false));
+                }
+            }
+        }
+        false
+    });
+    assert!(has_c1, "First contribution must emit is_pool_full = false");
+
+    // Member 2 contributes: 2/2 members contributed -> is_pool_full = true!
+    client.contribute(&member2, &1000);
+    let events2 = env.events().all();
+    let has_c2 = events2.events().iter().any(|e| {
+        let soroban_sdk::xdr::ContractEventBody::V0(ref v0) = e.body;
+        if let Some(soroban_sdk::xdr::ScVal::Symbol(ref sym)) = v0.topics.first() {
+            if sym.0.as_slice() == b"contrib" {
+                if let soroban_sdk::xdr::ScVal::Vec(Some(ref vec)) = v0.data {
+                    return vec.get(2) == Some(&soroban_sdk::xdr::ScVal::Bool(true));
+                }
+            }
+        }
+        false
+    });
+    assert!(has_c2, "Second contribution must emit is_pool_full = true");
+
+    // First payout (to member1) — not final payout
+    client.payout(&member1);
+    let events_p1 = env.events().all();
+    let has_cycle_done_p1 = events_p1.events().iter().any(|e| {
+        let soroban_sdk::xdr::ContractEventBody::V0(ref v0) = e.body;
+        if let Some(soroban_sdk::xdr::ScVal::Symbol(ref sym)) = v0.topics.first() {
+            return sym.0.as_slice() == b"cycle_done";
+        }
+        false
+    });
+    assert!(!has_cycle_done_p1, "cycle_done emitted prematurely on non-final payout");
+
+    // Cycle 2: reset cycle and members contribute for next round
+    client.reset_cycle();
+    client.contribute(&member1, &1000);
+    client.contribute(&member2, &1000);
+
+    // Second payout (to member2) — final payout of queue, emits cycle_done
+    client.payout(&member2);
+    let events_p2 = env.events().all();
+    let has_cycle_done_p2 = events_p2.events().iter().any(|e| {
+        let soroban_sdk::xdr::ContractEventBody::V0(ref v0) = e.body;
+        if let Some(soroban_sdk::xdr::ScVal::Symbol(ref sym)) = v0.topics.first() {
+            return sym.0.as_slice() == b"cycle_done";
+        }
+        false
+    });
+    assert!(has_cycle_done_p2, "cycle_done event must be emitted on final cycle payout");
+}
+

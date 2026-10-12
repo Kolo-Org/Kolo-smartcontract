@@ -2,7 +2,7 @@
 #![allow(deprecated)]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, token, Address, Env, IntoVal, String, Vec,
+    contract, contractimpl, contracttype, symbol_short, token, Address, Env, IntoVal, String, Symbol, Vec,
 };
 
 mod test;
@@ -393,8 +393,45 @@ impl KoloSavingsContract {
         // Transfer tokens from the member to this contract
         token_client.transfer(&member, env.current_contract_address(), &amount);
 
-        env.events()
-            .publish((symbol_short!("contrib"), member), amount);
+        let mut current_cycle_contributions: u32 = 0;
+        for m in members.iter() {
+            if let Some(state) = env
+                .storage()
+                .persistent()
+                .get::<DataKey, MemberState>(&DataKey::Member(m))
+            {
+                if state.last_contribution_cycle_id == current_cycle_id {
+                    current_cycle_contributions += 1;
+                }
+            }
+        }
+
+        let is_pool_full = match group_type {
+            GroupType::Rotational => {
+                let frozen_count: i128 = env
+                    .storage()
+                    .instance()
+                    .get(&DataKey::CycleMemberCount)
+                    .unwrap_or(members.len() as i128);
+                (current_cycle_contributions as i128) >= frozen_count
+            }
+            GroupType::GoalBased => {
+                if let Some(target) = env
+                    .storage()
+                    .instance()
+                    .get::<_, i128>(&DataKey::TargetAmount)
+                {
+                    token_client.balance(&env.current_contract_address()) >= target
+                } else {
+                    false
+                }
+            }
+        };
+
+        env.events().publish(
+            (symbol_short!("contrib"), member),
+            (amount, current_cycle_contributions, is_pool_full),
+        );
     }
 
     /// Withdraw payout (Admin triggers payout to the next member in queue)
@@ -499,8 +536,20 @@ impl KoloSavingsContract {
             .instance()
             .set(&DataKey::IsExecutingPayout, &false);
 
+        let is_last_payout = (next_index + 1) == members.len();
+
         env.events()
             .publish((symbol_short!("payout"), recipient), pool_size);
+
+        if is_last_payout {
+            let current_cycle_id: u32 = env
+                .storage()
+                .instance()
+                .get(&DataKey::CurrentCycleId)
+                .unwrap_or(1);
+            env.events()
+                .publish((Symbol::new(&env, "cycle_done"), current_cycle_id), ());
+        }
     }
 
     /// Returns the address of the next member in line for a payout.
